@@ -1,0 +1,4 @@
+state,seeded_barrier_pj,active_barrier_pj,delta_pj,provenance_status,replacement_applied,source_file,sheet_name,row,column
+skyrmion_antiskyrmion_merge_to_hopfion,0.000224,0.000224,0.0,raw_moesm_verification_pending,false,,,,
+hopfion_collapse,0.000286,0.000286,0.0,raw_moesm_verification_pending,false,,,,
+hopfion_escape,0.000732,0.000732,0.0,raw_moesm_verification_pending,false,,,,

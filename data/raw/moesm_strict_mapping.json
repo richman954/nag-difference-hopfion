@@ -1,0 +1,9 @@
+{
+  "version": "0.1",
+  "description": "Deterministic CSV mapping scaffold; replace with validated MOESM sheet mapping after raw review.",
+  "states": {
+    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2, "unit": "pJ"},
+    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2, "unit": "pJ"},
+    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2, "unit": "pJ"}
+  }
+}
