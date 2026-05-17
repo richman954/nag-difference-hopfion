@@ -33,14 +33,17 @@ def _validate_mapping_state_spec(state: str, spec: object) -> dict[str, object]:
     file = spec["file"]
     row = spec["row"]
     column = spec["column"]
+    unit = spec.get("unit", "pJ")
     if not isinstance(file, str) or not file.strip():
         raise ValueError(f"invalid mapping for state '{state}': file must be a non-empty string")
     if not isinstance(row, int) or row < 1:
         raise ValueError(f"invalid mapping for state '{state}': row must be a 1-indexed positive integer")
     if not isinstance(column, int) or column < 1:
         raise ValueError(f"invalid mapping for state '{state}': column must be a 1-indexed positive integer")
+    if not isinstance(unit, str) or unit not in {"pJ", "fJ", "aJ"}:
+        raise ValueError(f"invalid mapping for state '{state}': unit must be one of pJ, fJ, aJ")
 
-    return {"file": file, "row": row, "column": column}
+    return {"file": file, "row": row, "column": column, "unit": unit}
 
 
 def load_strict_mapping(path: str | Path = DEFAULT_STRICT_MAPPING_PATH) -> dict[str, dict[str, object]]:
@@ -96,10 +99,14 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _normalize_to_pj(val: float) -> float:
-    if val > 1e-2:
-        return val * 1e-12
-    return val
+def _normalize_to_pj(val: float, unit: str = "pJ") -> float:
+    if unit == "pJ":
+        return val
+    if unit == "fJ":
+        return val * 1e-3
+    if unit == "aJ":
+        return val * 1e-6
+    raise ValueError(f"unsupported unit: {unit}")
 
 
 def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, str]:
@@ -122,7 +129,7 @@ def _extract_strict_csv(raw_dir: Path, mapping_path: str | Path = DEFAULT_STRICT
         match = NUM_RE.search(rows[r][c])
         if not match:
             continue
-        val = _normalize_to_pj(float(match.group(0)))
+        val = _normalize_to_pj(float(match.group(0)), unit=spec["unit"])
         results.append(
             ExtractedBarrier(
                 state=state,
@@ -131,7 +138,7 @@ def _extract_strict_csv(raw_dir: Path, mapping_path: str | Path = DEFAULT_STRICT
                 sheet_name=file.stem,
                 row=spec["row"],
                 column=spec["column"],
-                unit="pJ",
+                unit=spec["unit"],
                 extraction_method="strict_csv_mapping",
                 notes="Extracted via deterministic file/row/column mapping.",
             )
@@ -157,7 +164,7 @@ def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
                                 m = NUM_RE.search(row[scan_c - 1])
                                 if not m:
                                     continue
-                                val = _normalize_to_pj(float(m.group(0)))
+                                val = _normalize_to_pj(float(m.group(0)), unit="pJ")
                                 results[state] = ExtractedBarrier(
                                     state=state,
                                     barrier_pj=val,
@@ -165,7 +172,7 @@ def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
                                     sheet_name=file.stem,
                                     row=r_idx,
                                     column=scan_c,
-                                    unit="pJ",
+                                    unit=spec["unit"],
                                     extraction_method="keyword_row_scan_csv",
                                     notes="Extracted from MOESM raw CSV by keyword and nearest numeric cell.",
                                 )

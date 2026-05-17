@@ -53,9 +53,9 @@ def test_strict_mode_uses_mapping_file(tmp_path):
     mapping.write_text(
         """{
   "states": {
-    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2},
-    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2},
-    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2}
+    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2, "unit": "pJ"},
+    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2, "unit": "pJ"},
+    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2, "unit": "pJ"}
   }
 }""",
         encoding="utf-8",
@@ -71,9 +71,9 @@ def test_default_mode_is_strict(tmp_path):
     mapping.write_text(
         """{
   "states": {
-    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2},
-    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2},
-    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2}
+    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2, "unit": "pJ"},
+    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2, "unit": "pJ"},
+    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2, "unit": "pJ"}
   }
 }""",
         encoding="utf-8",
@@ -87,7 +87,7 @@ def test_default_mode_is_strict(tmp_path):
 def test_load_strict_mapping_rejects_invalid_state_specs(tmp_path):
     bad = tmp_path / "bad_map.json"
     bad.write_text(
-        '{"states": {"hopfion_escape": {"file": "MOESM16.csv", "row": 0, "column": 2}}}',
+        '{"states": {"hopfion_escape": {"file": "MOESM16.csv", "row": 0, "column": 2, "unit": "pJ"}}}',
         encoding="utf-8",
     )
     from nagdiff.extraction import load_strict_mapping
@@ -109,3 +109,22 @@ def test_extract_rejects_unknown_mode(tmp_path):
         assert "mode must be one of" in str(exc)
     else:
         raise AssertionError("expected ValueError for unsupported extraction mode")
+
+
+def test_strict_mode_respects_declared_units(tmp_path):
+    (tmp_path / "MOESM13.csv").write_text("h,v\na,224\nb,286\n", encoding="utf-8")
+    (tmp_path / "MOESM16.csv").write_text("h,v\na,732\n", encoding="utf-8")
+    mapping = tmp_path / "map_units.json"
+    mapping.write_text(
+        """{\n  "states": {\n    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2, "unit": "fJ"},\n    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2, "unit": "fJ"},\n    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2, "unit": "fJ"}\n  }\n}""",
+        encoding="utf-8",
+    )
+    from nagdiff.extraction import extract_barriers_from_raw
+
+    recs = extract_barriers_from_raw(tmp_path, mode="strict", mapping_path=mapping)
+    values = {r.state: r.barrier_pj for r in recs}
+    import pytest
+
+    assert values["skyrmion_antiskyrmion_merge_to_hopfion"] == pytest.approx(224e-3)
+    assert values["hopfion_collapse"] == pytest.approx(286e-3)
+    assert values["hopfion_escape"] == pytest.approx(732e-3)
