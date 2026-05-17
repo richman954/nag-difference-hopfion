@@ -20,12 +20,46 @@ DEFAULT_STRICT_MAPPING_PATH = Path("data/raw/moesm_strict_mapping.json")
 NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 
 
+def _validate_mapping_state_spec(state: str, spec: object) -> dict[str, object]:
+    if not isinstance(spec, dict):
+        raise ValueError(f"invalid mapping for state '{state}': expected object spec")
+
+    required = {"file", "row", "column"}
+    missing = required.difference(spec.keys())
+    if missing:
+        missing_txt = ", ".join(sorted(missing))
+        raise ValueError(f"invalid mapping for state '{state}': missing fields: {missing_txt}")
+
+    file = spec["file"]
+    row = spec["row"]
+    column = spec["column"]
+    if not isinstance(file, str) or not file.strip():
+        raise ValueError(f"invalid mapping for state '{state}': file must be a non-empty string")
+    if not isinstance(row, int) or row < 1:
+        raise ValueError(f"invalid mapping for state '{state}': row must be a 1-indexed positive integer")
+    if not isinstance(column, int) or column < 1:
+        raise ValueError(f"invalid mapping for state '{state}': column must be a 1-indexed positive integer")
+
+    return {"file": file, "row": row, "column": column}
+
+
 def load_strict_mapping(path: str | Path = DEFAULT_STRICT_MAPPING_PATH) -> dict[str, dict[str, object]]:
     p = Path(path)
     if not p.exists():
         return {}
+
     payload = json.loads(p.read_text(encoding="utf-8"))
-    return payload.get("states", {})
+    states = payload.get("states", {})
+    if not isinstance(states, dict):
+        raise ValueError("invalid strict mapping: top-level 'states' must be an object")
+
+    validated: dict[str, dict[str, object]] = {}
+    for state, spec in states.items():
+        if state not in TARGETS:
+            continue
+        validated[state] = _validate_mapping_state_spec(state, spec)
+
+    return validated
 
 
 @dataclass
@@ -145,6 +179,9 @@ def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "str
         return _extract_strict_csv(raw_path, mapping_path=mapping_path)
     if mode == "heuristic":
         return _extract_keyword_csv(raw_path)
+    if mode != "auto":
+        raise ValueError("mode must be one of: strict, heuristic, auto")
+
     strict_records = _extract_strict_csv(raw_path, mapping_path=mapping_path)
     if len(strict_records) == len(TARGETS):
         return strict_records

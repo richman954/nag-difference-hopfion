@@ -82,3 +82,30 @@ def test_default_mode_is_strict(tmp_path):
     recs = extract_barriers_from_raw(tmp_path, mapping_path=mapping)
     assert len(recs) == 3
     assert all(r.extraction_method == "strict_csv_mapping" for r in recs)
+
+
+def test_load_strict_mapping_rejects_invalid_state_specs(tmp_path):
+    bad = tmp_path / "bad_map.json"
+    bad.write_text(
+        '{"states": {"hopfion_escape": {"file": "MOESM16.csv", "row": 0, "column": 2}}}',
+        encoding="utf-8",
+    )
+    from nagdiff.extraction import load_strict_mapping
+
+    try:
+        load_strict_mapping(bad)
+    except ValueError as exc:
+        assert "row must be a 1-indexed positive integer" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for invalid row index")
+
+
+def test_extract_rejects_unknown_mode(tmp_path):
+    from nagdiff.extraction import extract_barriers_from_raw
+
+    try:
+        extract_barriers_from_raw(tmp_path, mode="nonsense")
+    except ValueError as exc:
+        assert "mode must be one of" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for unsupported extraction mode")
