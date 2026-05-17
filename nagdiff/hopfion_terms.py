@@ -48,8 +48,8 @@ def _validate_provenance(record: dict[str, object]) -> None:
             raise ValueError(f"missing required provenance field: {field}")
 
 
-def load_barrier_table(raw_dir: str = "data/raw") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir)
+def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
+    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
     extracted_by_state = {row.state: row for row in extracted}
 
     combined = []

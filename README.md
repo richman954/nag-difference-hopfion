@@ -65,6 +65,15 @@ See `data/processed/EXTRACTION_STATUS.md` for explicit extraction status.
 Only states with successful extraction replace seeded fallback values; otherwise provisional seeded values are retained with `seeded_fallback` provenance fields.
 The seeded table is always kept available for side-by-side comparison and auditability.
 
+
+### Extraction modes
+
+- `auto`: use deterministic strict mapping when complete; otherwise fallback to heuristic keyword scan.
+- `strict`: deterministic `file/row/column` extraction only.
+- `heuristic`: keyword + nearby numeric scan (scaffold fallback).
+
+Comparison report output can be produced with `nagdiff.reporting.write_extraction_comparison_csv(...)`.
+
 ## Quick start
 
 ```bash
