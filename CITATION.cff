@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+title: "NAG Difference Hopfion Benchmark"
+message: "If you use this benchmark scaffold, please cite it."
+type: software
+authors:
+  - family-names: "Open"
+    given-names: "Research Scaffold"
+version: "0.1.0"
+date-released: 2026-05-13
+repository-code: "https://github.com/example/nag-difference-hopfion"
+keywords:
+  - hopfion
+  - skyrmion
+  - FeGe
+  - state selection
+  - pairwise comparison

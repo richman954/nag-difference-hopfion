@@ -1,0 +1,4 @@
+state,barrier_pj,observable_mismatch,probability,topology_penalty,alpha,beta,gamma,delta,score_placeholder,provenance_status
+skyrmion_antiskyrmion_merge_to_hopfion,2.24e-4,0.10,0.70,0.20,1.0,1.0,1.0,1e-12,,raw_moesm_verification_pending
+hopfion_collapse,2.86e-4,0.20,0.50,0.30,1.0,1.0,1.0,1e-12,,raw_moesm_verification_pending
+hopfion_escape,7.32e-4,0.30,0.30,0.40,1.0,1.0,1.0,1e-12,,raw_moesm_verification_pending
