@@ -24,8 +24,9 @@ def run_checkpoint_pipeline(
         out_csv=comparison_out,
         raw_dir=raw_dir,
         extraction_mode=extraction_mode,
+        mapping_path=mapping_path,
     )
-    table = load_barrier_table(raw_dir=raw_dir, extraction_mode=extraction_mode)
+    table = load_barrier_table(raw_dir=raw_dir, extraction_mode=extraction_mode, mapping_path=str(mapping_path))
     return {
         "mode": extraction_mode,
         "artifact_path": str(artifact_out),

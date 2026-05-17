@@ -6,8 +6,13 @@ from pathlib import Path
 from nagdiff.hopfion_terms import load_barrier_table
 
 
-def write_extraction_comparison_csv(out_csv: str | Path, raw_dir: str = "data/raw", extraction_mode: str = "strict") -> Path:
-    table = load_barrier_table(raw_dir=raw_dir, extraction_mode=extraction_mode)
+def write_extraction_comparison_csv(
+    out_csv: str | Path,
+    raw_dir: str = "data/raw",
+    extraction_mode: str = "strict",
+    mapping_path: str | Path = "data/raw/moesm_strict_mapping.json",
+) -> Path:
+    table = load_barrier_table(raw_dir=raw_dir, extraction_mode=extraction_mode, mapping_path=str(mapping_path))
     seeded = {r["state"]: r for r in table["seeded_records"]}
     out_path = Path(out_csv)
     out_path.parent.mkdir(parents=True, exist_ok=True)
