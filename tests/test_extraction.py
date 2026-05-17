@@ -128,3 +128,14 @@ def test_strict_mode_respects_declared_units(tmp_path):
     assert values["skyrmion_antiskyrmion_merge_to_hopfion"] == pytest.approx(224e-3)
     assert values["hopfion_collapse"] == pytest.approx(286e-3)
     assert values["hopfion_escape"] == pytest.approx(732e-3)
+
+
+def test_collect_checksums_is_deterministically_sorted(tmp_path):
+    (tmp_path / "MOESM16.csv").write_text("h,v\na,7.32e-4\n", encoding="utf-8")
+    (tmp_path / "MOESM13.csv").write_text("h,v\na,2.24e-4\n", encoding="utf-8")
+
+    from nagdiff.extraction import collect_raw_file_checksums
+
+    checksums = collect_raw_file_checksums(tmp_path)
+    keys = list(checksums.keys())
+    assert keys == sorted(keys)

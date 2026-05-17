@@ -111,7 +111,8 @@ def _normalize_to_pj(val: float, unit: str = "pJ") -> float:
 
 def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, str]:
     raw_path = Path(raw_dir)
-    return {str(file): _sha256(file) for file in _iter_moesm_files(raw_path)}
+    files = sorted(_iter_moesm_files(raw_path), key=lambda p: str(p))
+    return {str(file): _sha256(file) for file in files}
 
 
 def _extract_strict_csv(raw_dir: Path, mapping_path: str | Path = DEFAULT_STRICT_MAPPING_PATH) -> list[ExtractedBarrier]:
@@ -172,7 +173,7 @@ def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
                                     sheet_name=file.stem,
                                     row=r_idx,
                                     column=scan_c,
-                                    unit=spec["unit"],
+                                    unit="pJ",
                                     extraction_method="keyword_row_scan_csv",
                                     notes="Extracted from MOESM raw CSV by keyword and nearest numeric cell.",
                                 )
@@ -198,7 +199,7 @@ def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "str
 def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "strict", mapping_path: str | Path = DEFAULT_STRICT_MAPPING_PATH) -> dict[str, object]:
     extracted = extract_barriers_from_raw(raw_dir, mode=mode, mapping_path=mapping_path)
     payload = {
-        "raw_dir": str(raw_dir),
+        "raw_dir": str(Path(raw_dir)),
         "mode": mode,
         "extracted_count": len(extracted),
         "checksums": collect_raw_file_checksums(raw_dir),
