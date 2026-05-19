@@ -7,7 +7,7 @@ authors:
     given-names: "Research Scaffold"
 version: "0.1.0"
 date-released: 2026-05-13
-repository-code: "https://github.com/example/nag-difference-hopfion"
+repository-code: "https://github.com/<owner>/nag-difference-hopfion"
 keywords:
   - hopfion
   - skyrmion
