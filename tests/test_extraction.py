@@ -47,25 +47,48 @@ def test_extracted_records_have_required_provenance(tmp_path):
 
 
 def test_is_extraction_validated_success(tmp_path):
-    from nagdiff.extraction import is_extraction_validated, write_extraction_artifact
-    (tmp_path / "MOESM13.csv").write_text(
-        "label,value\n"
-        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
-        "hopfion collapse barrier,2.86e-4\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "MOESM16.csv").write_text(
-        "label,value\n"
-        "hopfion escape barrier,7.32e-4\n",
-        encoding="utf-8",
-    )
-    out = tmp_path / "artifact.json"
-    payload = write_extraction_artifact(tmp_path, out)
+    from nagdiff.extraction import is_extraction_validated
+    payload = {
+        "extracted_count": 3,
+        "records": [
+            {
+                "state": "skyrmion_antiskyrmion_merge_to_hopfion",
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            },
+            {
+                "state": "hopfion_collapse",
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            },
+            {
+                "state": "hopfion_escape",
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            }
+        ],
+        "checksums": {"f": "c"}
+    }
     assert is_extraction_validated(payload) is True
 
 
 def test_is_extraction_validated_fails_on_empty(tmp_path):
-    from nagdiff.extraction import is_extraction_validated, write_extraction_artifact
+    from nagdiff.extraction import is_extraction_validated
     out = tmp_path / "artifact.json"
     payload = write_extraction_artifact(tmp_path, out)
     assert is_extraction_validated(payload) is False

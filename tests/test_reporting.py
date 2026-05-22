@@ -14,7 +14,7 @@ def test_write_extraction_comparison_csv(tmp_path):
         encoding="utf-8",
     )
     out = tmp_path / "comparison.csv"
-    write_extraction_comparison_csv(out, raw_dir=tmp_path, extraction_mode="heuristic")
+    write_extraction_comparison_csv(out, raw_dir=tmp_path, extraction_mode="strict")
     text = out.read_text(encoding="utf-8")
     assert "replacement_applied" in text
     assert "skyrmion_antiskyrmion_merge_to_hopfion" in text
