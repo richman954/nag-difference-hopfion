@@ -7,13 +7,13 @@ from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
 def test_write_extraction_artifact(tmp_path):
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
-        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
-        "hopfion collapse barrier,2.86e-4\n",
+        "merge,2.24e-4\n"
+        "collapse,2.86e-4\n",
         encoding="utf-8",
     )
     (tmp_path / "MOESM16.csv").write_text(
         "label,value\n"
-        "hopfion escape barrier,7.32e-4\n",
+        "escape,7.32e-4\n",
         encoding="utf-8",
     )
 
@@ -28,13 +28,13 @@ def test_write_extraction_artifact(tmp_path):
 def test_extracted_records_have_required_provenance(tmp_path):
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
-        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
-        "hopfion collapse barrier,2.86e-4\n",
+        "merge,2.24e-4\n"
+        "collapse,2.86e-4\n",
         encoding="utf-8",
     )
     (tmp_path / "MOESM16.csv").write_text(
         "label,value\n"
-        "hopfion escape barrier,7.32e-4\n",
+        "escape,7.32e-4\n",
         encoding="utf-8",
     )
 

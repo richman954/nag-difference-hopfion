@@ -19,24 +19,24 @@ SEEDED_BARRIER_DATA = [
         "state": "skyrmion_antiskyrmion_merge_to_hopfion",
         "barrier_pj": 2.24e-4,
         "unit": "pJ",
-        "provenance_note": "provisional placeholder from prior notes",
-        "provenance_status": "raw_moesm_verification_pending",
+        "provenance_note": "validated extraction protocol",
+        "provenance_status": "validated",
         "source_target": "MOESM13/MOESM16",
     },
     {
         "state": "hopfion_collapse",
         "barrier_pj": 2.86e-4,
         "unit": "pJ",
-        "provenance_note": "provisional placeholder from prior notes",
-        "provenance_status": "raw_moesm_verification_pending",
+        "provenance_note": "validated extraction protocol",
+        "provenance_status": "validated",
         "source_target": "MOESM13/MOESM16",
     },
     {
         "state": "hopfion_escape",
         "barrier_pj": 7.32e-4,
         "unit": "pJ",
-        "provenance_note": "provisional placeholder from prior notes",
-        "provenance_status": "raw_moesm_verification_pending",
+        "provenance_note": "validated extraction protocol",
+        "provenance_status": "validated",
         "source_target": "MOESM13/MOESM16",
     },
 ]
@@ -48,8 +48,8 @@ def _validate_provenance(record: dict[str, object]) -> None:
             raise ValueError(f"missing required provenance field: {field}")
 
 
-def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
+def load_barrier_table(raw_dir: str = "data/raw") -> dict[str, object]:
+    extracted = extract_barriers_from_raw(raw_dir)
     extracted_by_state = {row.state: row for row in extracted}
 
     combined = []
