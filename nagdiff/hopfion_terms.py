@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from nagdiff.extraction import extract_barriers_from_raw
+from dataclasses import asdict
+from nagdiff.extraction import collect_raw_file_checksums, extract_barriers_from_raw, is_extraction_validated
 
 REQUIRED_PROVENANCE_FIELDS = [
     "source_file",
@@ -19,24 +20,24 @@ SEEDED_BARRIER_DATA = [
         "state": "skyrmion_antiskyrmion_merge_to_hopfion",
         "barrier_pj": 2.24e-4,
         "unit": "pJ",
-        "provenance_note": "validated extraction protocol",
-        "provenance_status": "validated",
+        "provenance_note": "provisional placeholder from prior notes",
+        "provenance_status": "raw_moesm_verification_pending",
         "source_target": "MOESM13/MOESM16",
     },
     {
         "state": "hopfion_collapse",
         "barrier_pj": 2.86e-4,
         "unit": "pJ",
-        "provenance_note": "validated extraction protocol",
-        "provenance_status": "validated",
+        "provenance_note": "provisional placeholder from prior notes",
+        "provenance_status": "raw_moesm_verification_pending",
         "source_target": "MOESM13/MOESM16",
     },
     {
         "state": "hopfion_escape",
         "barrier_pj": 7.32e-4,
         "unit": "pJ",
-        "provenance_note": "validated extraction protocol",
-        "provenance_status": "validated",
+        "provenance_note": "provisional placeholder from prior notes",
+        "provenance_status": "raw_moesm_verification_pending",
         "source_target": "MOESM13/MOESM16",
     },
 ]
@@ -48,14 +49,22 @@ def _validate_provenance(record: dict[str, object]) -> None:
             raise ValueError(f"missing required provenance field: {field}")
 
 
-def load_barrier_table(raw_dir: str = "data/raw") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir)
-    extracted_by_state = {row.state: row for row in extracted}
+def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
+    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
 
-    combined = []
-    for seeded in SEEDED_BARRIER_DATA:
-        state = seeded["state"]
-        if state in extracted_by_state:
+    payload = {
+        "raw_dir": str(raw_dir),
+        "mode": extraction_mode,
+        "extracted_count": len(extracted),
+        "checksums": collect_raw_file_checksums(raw_dir),
+        "records": [asdict(row) for row in extracted],
+    }
+
+    if is_extraction_validated(payload):
+        extracted_by_state = {row.state: row for row in extracted}
+        combined = []
+        for seeded in SEEDED_BARRIER_DATA:
+            state = seeded["state"]
             ex = extracted_by_state[state]
             record = {
                 "state": state,
@@ -71,24 +80,30 @@ def load_barrier_table(raw_dir: str = "data/raw") -> dict[str, object]:
             }
             _validate_provenance(record)
             combined.append(record)
-        else:
-            combined.append(
-                {
-                    **seeded,
-                    "source_file": None,
-                    "sheet_name": None,
-                    "row": None,
-                    "column": None,
-                    "extraction_method": "seeded_fallback",
-                    "notes": "Extraction not found; using provisional seeded fallback.",
-                }
-            )
+        return {
+            "mode": "extracted",
+            "records": combined,
+            "seeded_records": SEEDED_BARRIER_DATA,
+            "extracted_count": len(extracted_by_state),
+        }
 
-    success = len(extracted_by_state) == len(SEEDED_BARRIER_DATA)
-    mode = "extracted" if success else "fallback"
+    combined = []
+    for seeded in SEEDED_BARRIER_DATA:
+        combined.append(
+            {
+                **seeded,
+                "source_file": None,
+                "sheet_name": None,
+                "row": None,
+                "column": None,
+                "extraction_method": "seeded_fallback",
+                "notes": "Extraction not found; using provisional seeded fallback.",
+            }
+        )
+
     return {
-        "mode": mode,
+        "mode": "fallback",
         "records": combined,
         "seeded_records": SEEDED_BARRIER_DATA,
-        "extracted_count": len(extracted_by_state),
+        "extracted_count": 0,
     }

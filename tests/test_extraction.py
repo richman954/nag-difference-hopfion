@@ -7,13 +7,13 @@ from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
 def test_write_extraction_artifact(tmp_path):
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
-        "merge,2.24e-4\n"
-        "collapse,2.86e-4\n",
+        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
+        "hopfion collapse barrier,2.86e-4\n",
         encoding="utf-8",
     )
     (tmp_path / "MOESM16.csv").write_text(
         "label,value\n"
-        "escape,7.32e-4\n",
+        "hopfion escape barrier,7.32e-4\n",
         encoding="utf-8",
     )
 
@@ -28,13 +28,13 @@ def test_write_extraction_artifact(tmp_path):
 def test_extracted_records_have_required_provenance(tmp_path):
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
-        "merge,2.24e-4\n"
-        "collapse,2.86e-4\n",
+        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
+        "hopfion collapse barrier,2.86e-4\n",
         encoding="utf-8",
     )
     (tmp_path / "MOESM16.csv").write_text(
         "label,value\n"
-        "escape,7.32e-4\n",
+        "hopfion escape barrier,7.32e-4\n",
         encoding="utf-8",
     )
 
@@ -44,3 +44,34 @@ def test_extracted_records_have_required_provenance(tmp_path):
     for record in extracted:
         for field in REQUIRED_PROVENANCE_FIELDS:
             assert record[field] not in (None, "")
+
+
+def test_is_extraction_validated_success(tmp_path):
+    from nagdiff.extraction import is_extraction_validated, write_extraction_artifact
+    (tmp_path / "MOESM13.csv").write_text(
+        "label,value\n"
+        "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
+        "hopfion collapse barrier,2.86e-4\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "MOESM16.csv").write_text(
+        "label,value\n"
+        "hopfion escape barrier,7.32e-4\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "artifact.json"
+    payload = write_extraction_artifact(tmp_path, out)
+    assert is_extraction_validated(payload) is True
+
+
+def test_is_extraction_validated_fails_on_empty(tmp_path):
+    from nagdiff.extraction import is_extraction_validated, write_extraction_artifact
+    out = tmp_path / "artifact.json"
+    payload = write_extraction_artifact(tmp_path, out)
+    assert is_extraction_validated(payload) is False
+
+
+def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
+    table = load_barrier_table(raw_dir=tmp_path)
+    for record in table["records"]:
+        assert record["provenance_status"] == "raw_moesm_verification_pending"
