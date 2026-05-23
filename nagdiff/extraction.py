@@ -146,6 +146,34 @@ def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "aut
     return _extract_keyword_csv(raw_path)
 
 
+def is_extraction_validated(payload: dict[str, object]) -> bool:
+    if payload.get("extracted_count", 0) != len(TARGETS):
+        return False
+    records = payload.get("records", [])
+    if not records:
+        return False
+    if not payload.get("checksums"):
+        return False
+
+    expected_states = set(TARGETS.keys())
+    found_states = set()
+
+    required_fields = ["source_file", "sheet_name", "row", "column", "unit", "extraction_method", "notes"]
+
+    for record in records:
+        if record.get("extraction_method") == "seeded_fallback":
+            return False
+        for field in required_fields:
+            if field not in record or record[field] in (None, ""):
+                return False
+        found_states.add(record.get("state"))
+
+    if expected_states != found_states:
+        return False
+
+    return True
+
+
 def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict[str, object]:
     extracted = extract_barriers_from_raw(raw_dir, mode=mode)
     payload = {

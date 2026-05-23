@@ -50,7 +50,7 @@ The core object is a **difference between two candidate endpoints/paths**:
 
 ## Seeded barriers (placeholder, provisional)
 
-The following seeded values are **provisional placeholders** from prior notes and are **not final extracted values**:
+The following seeded values are **provisional placeholders** from prior notes, are **not final extracted values**, and are explicitly labeled as **raw MOESM verification pending**:
 
 - `skyrmion_antiskyrmion_merge_to_hopfion`: `2.24e-4 pJ`
 - `hopfion_collapse`: `2.86e-4 pJ`
@@ -86,6 +86,10 @@ pytest
 
 For reproducible extraction steps, see `docs/raw_extraction_protocol.md`.
 
+
+## Second track: chain certificates
+
+A second track now adds finite-state chain-certificate utilities for antichain and hitting-probability checks, plus starter formalization files under `formal/`.
 
 ## Checkpoints and visuals
 

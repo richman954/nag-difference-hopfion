@@ -8,3 +8,5 @@
 - [x] Add CI workflow running pytest.
 - [x] Add raw extraction protocol and JSON extraction artifact CLI path.
 - [x] Add explicit progress checkpoints and pipeline visuals with test gates.
+- [x] Add second track: cancellation identity helpers and chain-certificate utilities.
+- [x] Add docs/tests/formal starter files for chain-certificate track.
