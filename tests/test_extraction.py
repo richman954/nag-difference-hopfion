@@ -1,6 +1,6 @@
 import json
 
-from nagdiff.extraction import write_extraction_artifact
+from nagdiff.extraction import _normalize_to_pj, write_extraction_artifact
 from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
 
 
@@ -98,3 +98,16 @@ def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
         assert record["provenance_status"] == "raw_moesm_verification_pending"
+
+
+def test_normalize_to_pj():
+    # Value > 1e-2 should be multiplied by 1e-12
+    assert _normalize_to_pj(1.0) == 1e-12
+    assert _normalize_to_pj(0.02) == 2e-14
+
+    # Value < 1e-2 should be unchanged
+    assert _normalize_to_pj(0.005) == 0.005
+    assert _normalize_to_pj(1e-3) == 1e-3
+
+    # Value == 1e-2 should be unchanged (since condition is strictly > 1e-2)
+    assert _normalize_to_pj(0.01) == 0.01
