@@ -75,7 +75,8 @@ def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
         file = raw_dir / spec["file"]
         if not file.exists():
             continue
-        rows = list(csv.reader(file.open("r", encoding="utf-8", newline="")))
+        with file.open("r", encoding="utf-8", newline="") as fh:
+            rows = list(csv.reader(fh))
         r = spec["row"] - 1
         c = spec["column"] - 1
         if r >= len(rows) or c >= len(rows[r]):
