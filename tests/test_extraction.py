@@ -46,6 +46,41 @@ def test_extracted_records_have_required_provenance(tmp_path):
             assert record[field] not in (None, "")
 
 
+def test_collect_raw_file_checksums(tmp_path):
+    import hashlib
+    from nagdiff.extraction import collect_raw_file_checksums
+
+    file1 = tmp_path / "MOESM13.csv"
+    file1_content = b"test content 1"
+    file1.write_bytes(file1_content)
+
+    file2 = tmp_path / "MOESM16.csv"
+    file2_content = b"test content 2"
+    file2.write_bytes(file2_content)
+
+    # Should not be collected based on _iter_moesm_files patterns
+    file3 = tmp_path / "other.csv"
+    file3.write_bytes(b"test content 3")
+
+    checksums = collect_raw_file_checksums(tmp_path)
+
+    assert len(checksums) == 2
+    assert str(file1) in checksums
+    assert str(file2) in checksums
+    assert str(file3) not in checksums
+
+    assert checksums[str(file1)] == hashlib.sha256(file1_content).hexdigest()
+    assert checksums[str(file2)] == hashlib.sha256(file2_content).hexdigest()
+
+
+def test_collect_raw_file_checksums_empty(tmp_path):
+    from nagdiff.extraction import collect_raw_file_checksums
+
+    checksums = collect_raw_file_checksums(tmp_path)
+    assert len(checksums) == 0
+    assert isinstance(checksums, dict)
+
+
 def test_is_extraction_validated_success(tmp_path):
     from nagdiff.extraction import is_extraction_validated
     payload = {
