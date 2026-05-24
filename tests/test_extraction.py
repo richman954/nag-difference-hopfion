@@ -1,7 +1,9 @@
 import json
 
+import pytest
+
 from nagdiff.extraction import write_extraction_artifact
-from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
+from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table, _validate_provenance
 
 
 def test_write_extraction_artifact(tmp_path):
@@ -98,3 +100,28 @@ def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
         assert record["provenance_status"] == "raw_moesm_verification_pending"
+
+
+def test_validate_provenance_raises_value_error():
+    valid_record = {field: "value" for field in REQUIRED_PROVENANCE_FIELDS}
+
+    # Test missing field
+    missing_field_record = valid_record.copy()
+    missing_field = REQUIRED_PROVENANCE_FIELDS[0]
+    del missing_field_record[missing_field]
+    with pytest.raises(ValueError, match=f"missing required provenance field: {missing_field}"):
+        _validate_provenance(missing_field_record)
+
+    # Test empty string
+    empty_string_record = valid_record.copy()
+    empty_field = REQUIRED_PROVENANCE_FIELDS[1]
+    empty_string_record[empty_field] = ""
+    with pytest.raises(ValueError, match=f"missing required provenance field: {empty_field}"):
+        _validate_provenance(empty_string_record)
+
+    # Test None
+    none_record = valid_record.copy()
+    none_field = REQUIRED_PROVENANCE_FIELDS[2]
+    none_record[none_field] = None
+    with pytest.raises(ValueError, match=f"missing required provenance field: {none_field}"):
+        _validate_provenance(none_record)
