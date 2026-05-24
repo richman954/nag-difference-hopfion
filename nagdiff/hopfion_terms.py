@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from nagdiff.extraction import collect_raw_file_checksums, extract_barriers_from_raw, is_extraction_validated
+from nagdiff.extraction import extract_barriers_and_checksums, is_extraction_validated
 
 REQUIRED_PROVENANCE_FIELDS = [
     "source_file",
@@ -50,13 +50,13 @@ def _validate_provenance(record: dict[str, object]) -> None:
 
 
 def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
+    extracted, checksums = extract_barriers_and_checksums(raw_dir, mode=extraction_mode)
 
     payload = {
         "raw_dir": str(raw_dir),
         "mode": extraction_mode,
         "extracted_count": len(extracted),
-        "checksums": collect_raw_file_checksums(raw_dir),
+        "checksums": checksums,
         "records": [asdict(row) for row in extracted],
     }
 

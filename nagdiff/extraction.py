@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import re
 from dataclasses import asdict, dataclass
@@ -69,13 +70,16 @@ def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, st
     return {str(file): _sha256(file) for file in _iter_moesm_files(raw_path)}
 
 
-def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
+def _extract_strict_csv(raw_dir: Path, file_contents: dict[Path, str]) -> list[ExtractedBarrier]:
     results: list[ExtractedBarrier] = []
+    parsed_files = {}
     for state, spec in STRICT_CSV_MAPPING.items():
         file = raw_dir / spec["file"]
-        if not file.exists():
+        if file not in file_contents:
             continue
-        rows = list(csv.reader(file.open("r", encoding="utf-8", newline="")))
+        if file not in parsed_files:
+            parsed_files[file] = list(csv.reader(io.StringIO(file_contents[file], newline="")))
+        rows = parsed_files[file]
         r = spec["row"] - 1
         c = spec["column"] - 1
         if r >= len(rows) or c >= len(rows[r]):
@@ -100,10 +104,10 @@ def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     return results
 
 
-def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
+def _extract_keyword_csv(raw_dir: Path, file_contents: dict[Path, str]) -> list[ExtractedBarrier]:
     results: dict[str, ExtractedBarrier] = {}
-    for file in _iter_moesm_files(raw_dir):
-        with file.open("r", encoding="utf-8", newline="") as fh:
+    for file, text_content in file_contents.items():
+        with io.StringIO(text_content, newline="") as fh:
             reader = csv.reader(fh)
             for r_idx, row in enumerate(reader, start=1):
                 for c_idx, cell in enumerate(row, start=1):
@@ -134,16 +138,30 @@ def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     return [results[s] for s in TARGETS if s in results]
 
 
-def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "auto") -> list[ExtractedBarrier]:
+def extract_barriers_and_checksums(raw_dir: str | Path = "data/raw", mode: str = "auto") -> tuple[list[ExtractedBarrier], dict[str, str]]:
     raw_path = Path(raw_dir)
+    checksums: dict[str, str] = {}
+    file_contents: dict[Path, str] = {}
+
+    for file in _iter_moesm_files(raw_path):
+        data = file.read_bytes()
+        checksums[str(file)] = hashlib.sha256(data).hexdigest()
+        file_contents[file] = data.decode("utf-8")
+
     if mode == "strict":
-        return _extract_strict_csv(raw_path)
+        return _extract_strict_csv(raw_path, file_contents), checksums
     if mode == "heuristic":
-        return _extract_keyword_csv(raw_path)
-    strict_records = _extract_strict_csv(raw_path)
+        return _extract_keyword_csv(raw_path, file_contents), checksums
+
+    strict_records = _extract_strict_csv(raw_path, file_contents)
     if len(strict_records) == len(TARGETS):
-        return strict_records
-    return _extract_keyword_csv(raw_path)
+        return strict_records, checksums
+    return _extract_keyword_csv(raw_path, file_contents), checksums
+
+
+def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "auto") -> list[ExtractedBarrier]:
+    records, _ = extract_barriers_and_checksums(raw_dir, mode)
+    return records
 
 
 def is_extraction_validated(payload: dict[str, object]) -> bool:
@@ -175,12 +193,12 @@ def is_extraction_validated(payload: dict[str, object]) -> bool:
 
 
 def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=mode)
+    extracted, checksums = extract_barriers_and_checksums(raw_dir, mode=mode)
     payload = {
         "raw_dir": str(raw_dir),
         "mode": mode,
         "extracted_count": len(extracted),
-        "checksums": collect_raw_file_checksums(raw_dir),
+        "checksums": checksums,
         "records": [asdict(row) for row in extracted],
     }
     out = Path(out_path)
