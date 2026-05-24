@@ -100,37 +100,51 @@ def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     return results
 
 
+def _process_keyword_match(
+    state: str, file: Path, r_idx: int, c_idx: int, row: list[str]
+) -> ExtractedBarrier | None:
+    for scan_c in range(c_idx, min(c_idx + 6, len(row) + 1)):
+        m = NUM_RE.search(row[scan_c - 1])
+        if not m:
+            continue
+        val = _normalize_to_pj(float(m.group(0)))
+        return ExtractedBarrier(
+            state=state,
+            barrier_pj=val,
+            source_file=str(file),
+            sheet_name=file.stem,
+            row=r_idx,
+            column=scan_c,
+            unit="pJ",
+            extraction_method="keyword_row_scan_csv",
+            notes="Extracted from MOESM raw CSV by keyword and nearest numeric cell.",
+        )
+    return None
+
+
+def _process_keyword_row(
+    file: Path, r_idx: int, row: list[str], results: dict[str, ExtractedBarrier]
+) -> None:
+    for c_idx, cell in enumerate(row, start=1):
+        text = (cell or "").strip().lower()
+        if not text:
+            continue
+        for state, keywords in TARGETS.items():
+            if state in results:
+                continue
+            if all(k in text for k in keywords):
+                barrier = _process_keyword_match(state, file, r_idx, c_idx, row)
+                if barrier:
+                    results[state] = barrier
+
+
 def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     results: dict[str, ExtractedBarrier] = {}
     for file in _iter_moesm_files(raw_dir):
         with file.open("r", encoding="utf-8", newline="") as fh:
             reader = csv.reader(fh)
             for r_idx, row in enumerate(reader, start=1):
-                for c_idx, cell in enumerate(row, start=1):
-                    text = (cell or "").strip().lower()
-                    if not text:
-                        continue
-                    for state, keywords in TARGETS.items():
-                        if state in results:
-                            continue
-                        if all(k in text for k in keywords):
-                            for scan_c in range(c_idx, min(c_idx + 6, len(row) + 1)):
-                                m = NUM_RE.search(row[scan_c - 1])
-                                if not m:
-                                    continue
-                                val = _normalize_to_pj(float(m.group(0)))
-                                results[state] = ExtractedBarrier(
-                                    state=state,
-                                    barrier_pj=val,
-                                    source_file=str(file),
-                                    sheet_name=file.stem,
-                                    row=r_idx,
-                                    column=scan_c,
-                                    unit="pJ",
-                                    extraction_method="keyword_row_scan_csv",
-                                    notes="Extracted from MOESM raw CSV by keyword and nearest numeric cell.",
-                                )
-                                break
+                _process_keyword_row(file, r_idx, row, results)
     return [results[s] for s in TARGETS if s in results]
 
 
