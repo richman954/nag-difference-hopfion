@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from nagdiff.extraction import write_extraction_artifact
 from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
@@ -98,3 +99,31 @@ def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
         assert record["provenance_status"] == "raw_moesm_verification_pending"
+
+
+@patch("nagdiff.extraction.write_extraction_artifact")
+@patch("sys.argv", ["extraction.py"])
+def test_main_default_args(mock_write, capsys):
+    from nagdiff.extraction import main
+    mock_write.return_value = {"extracted_count": 5}
+
+    main()
+
+    mock_write.assert_called_once_with("data/raw", "data/processed/extracted_barriers.json", mode="auto")
+
+    captured = capsys.readouterr()
+    assert "wrote data/processed/extracted_barriers.json with 5 extracted records (mode=auto)" in captured.out
+
+
+@patch("nagdiff.extraction.write_extraction_artifact")
+@patch("sys.argv", ["extraction.py", "--raw", "custom/raw", "--out", "custom/out.json", "--mode", "strict"])
+def test_main_custom_args(mock_write, capsys):
+    from nagdiff.extraction import main
+    mock_write.return_value = {"extracted_count": 2}
+
+    main()
+
+    mock_write.assert_called_once_with("custom/raw", "custom/out.json", mode="strict")
+
+    captured = capsys.readouterr()
+    assert "wrote custom/out.json with 2 extracted records (mode=strict)" in captured.out
