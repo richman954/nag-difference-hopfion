@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import numpy as np
 from typing import Iterable, Sequence
+
+import numpy as np
 
 
 def pairwise_difference_matrix(values: Iterable[float]) -> list[list[float]]:
@@ -10,7 +11,7 @@ def pairwise_difference_matrix(values: Iterable[float]) -> list[list[float]]:
     Antisymmetry follows directly from subtraction:
     D[j,i] = values[j] - values[i] = -(values[i] - values[j]) = -D[i,j].
     """
-    arr = np.fromiter(values, dtype=float)
+    arr = np.fromiter((float(v) for v in values), dtype=float)
     return np.subtract.outer(arr, arr).tolist()
 
 
