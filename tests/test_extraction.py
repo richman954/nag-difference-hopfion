@@ -4,6 +4,8 @@ from nagdiff.extraction import write_extraction_artifact
 from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
 
 
+import pytest
+
 def test_write_extraction_artifact(tmp_path):
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
@@ -18,7 +20,7 @@ def test_write_extraction_artifact(tmp_path):
     )
 
     out = tmp_path / "artifact.json"
-    payload = write_extraction_artifact(tmp_path, out)
+    payload = write_extraction_artifact(tmp_path, out, base_dir=tmp_path)
     assert payload["extracted_count"] == 3
     data = json.loads(out.read_text(encoding="utf-8"))
     assert len(data["checksums"]) == 2
@@ -90,8 +92,19 @@ def test_is_extraction_validated_success(tmp_path):
 def test_is_extraction_validated_fails_on_empty(tmp_path):
     from nagdiff.extraction import is_extraction_validated
     out = tmp_path / "artifact.json"
-    payload = write_extraction_artifact(tmp_path, out)
+    payload = write_extraction_artifact(tmp_path, out, base_dir=tmp_path)
     assert is_extraction_validated(payload) is False
+
+def test_write_extraction_artifact_path_traversal(tmp_path):
+    out = tmp_path / "artifact.json"
+    malicious_out = tmp_path / "../../artifact.json"
+    malicious_raw = tmp_path / "../../raw"
+
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        write_extraction_artifact(tmp_path, malicious_out, base_dir=tmp_path)
+
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        write_extraction_artifact(malicious_raw, out, base_dir=tmp_path)
 
 
 def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):

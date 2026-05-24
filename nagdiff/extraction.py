@@ -174,7 +174,17 @@ def is_extraction_validated(payload: dict[str, object]) -> bool:
     return True
 
 
-def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict[str, object]:
+def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto", base_dir: str | Path | None = None) -> dict[str, object]:
+    base = Path(base_dir).resolve() if base_dir else Path.cwd().resolve()
+
+    raw = Path(raw_dir).resolve()
+    if not raw.is_relative_to(base):
+        raise ValueError(f"Path traversal detected: {raw_dir} is outside base directory")
+
+    out = Path(out_path).resolve()
+    if not out.is_relative_to(base):
+        raise ValueError(f"Path traversal detected: {out_path} is outside base directory")
+
     extracted = extract_barriers_from_raw(raw_dir, mode=mode)
     payload = {
         "raw_dir": str(raw_dir),
@@ -183,7 +193,6 @@ def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: s
         "checksums": collect_raw_file_checksums(raw_dir),
         "records": [asdict(row) for row in extracted],
     }
-    out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
