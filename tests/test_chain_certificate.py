@@ -53,3 +53,13 @@ def test_hitting_probability_bounded():
 def test_generate_paths_negative_steps_raises():
     with pytest.raises(ValueError):
         generate_paths({"s": {"s": 1.0}}, "s", -1)
+
+
+def test_generate_paths_success():
+    kernel = {"A": {"B": 0.5, "C": 0.5}, "B": {"D": 1.0}}
+    # 0 steps should return the start node
+    assert generate_paths(kernel, "A", 0) == [["A"]]
+    # 1 step should branch out
+    assert generate_paths(kernel, "A", 1) == [["A", "B"], ["A", "C"]]
+    # 2 steps should continue on B, and terminate on C since it has no next states
+    assert generate_paths(kernel, "A", 2) == [["A", "B", "D"], ["A", "C"]]
