@@ -43,8 +43,10 @@ def generate_paths(kernel: Kernel, start: State, steps: int) -> list[list[State]
 
 def is_antichain(nodes: Iterable[State], order_pairs: set[tuple[State, State]]) -> bool:
     node_list = list(nodes)
+    n = len(node_list)
     for i, a in enumerate(node_list):
-        for b in node_list[i + 1 :]:
+        for j in range(i + 1, n):
+            b = node_list[j]
             if (a, b) in order_pairs or (b, a) in order_pairs:
                 return False
     return True
