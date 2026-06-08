@@ -29,8 +29,8 @@ def soft_selection_weights(scores: Iterable[float], temperature: float = 1.0) ->
     """Convert scores to normalized selection weights; lower score => higher weight."""
     if temperature <= 0:
         raise ValueError("temperature must be positive")
-    s = [float(x) for x in scores]
-    shifted = [-(x / temperature) for x in s]
+    inv_t = -1.0 / temperature
+    shifted = [float(x) * inv_t for x in scores]
     maxv = max(shifted)
     expv = [math.exp(x - maxv) for x in shifted]
     denom = sum(expv)
