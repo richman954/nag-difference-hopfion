@@ -4,7 +4,8 @@ from nagdiff.extraction import write_extraction_artifact
 from nagdiff.hopfion_terms import REQUIRED_PROVENANCE_FIELDS, load_barrier_table
 
 
-def test_write_extraction_artifact(tmp_path):
+def test_write_extraction_artifact(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     (tmp_path / "MOESM13.csv").write_text(
         "label,value\n"
         "skyrmion antiskyrmion merge hopfion barrier,2.24e-4\n"
@@ -87,7 +88,8 @@ def test_is_extraction_validated_success(tmp_path):
     assert is_extraction_validated(payload) is True
 
 
-def test_is_extraction_validated_fails_on_empty(tmp_path):
+def test_is_extraction_validated_fails_on_empty(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     from nagdiff.extraction import is_extraction_validated
     out = tmp_path / "artifact.json"
     payload = write_extraction_artifact(tmp_path, out)
@@ -98,3 +100,19 @@ def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
         assert record["provenance_status"] == "raw_moesm_verification_pending"
+
+def test_write_extraction_artifact_prevents_path_traversal(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    import pytest
+    from nagdiff.extraction import write_extraction_artifact
+
+    with pytest.raises(PermissionError, match="Path traversal detected"):
+        write_extraction_artifact(tmp_path, "../../out.json")
+
+def test_write_extraction_artifact_prevents_absolute_path_outside_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    import pytest
+    from nagdiff.extraction import write_extraction_artifact
+
+    with pytest.raises(PermissionError, match="Path traversal detected"):
+        write_extraction_artifact(tmp_path, "/tmp/out.json")

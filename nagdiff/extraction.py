@@ -183,7 +183,10 @@ def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: s
         "checksums": collect_raw_file_checksums(raw_dir),
         "records": [asdict(row) for row in extracted],
     }
-    out = Path(out_path)
+    out = Path(out_path).resolve()
+    if not out.is_relative_to(Path.cwd()):
+        raise PermissionError(f"Path traversal detected: {out} escapes the current working directory.")
+
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
