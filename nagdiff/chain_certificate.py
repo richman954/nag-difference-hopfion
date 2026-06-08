@@ -78,11 +78,10 @@ def hitting_probabilities(
     current = start_distribution.copy()
     total_hit = 0.0
     for _ in range(steps + 1):
-        hit_now = sum(prob for state, prob in current.items() if state in target_subset)
-        total_hit += hit_now
         next_dist: dict[State, float] = {}
         for state, prob in current.items():
             if state in target_subset:
+                total_hit += prob
                 continue
             for nxt, weight in kernel.get(state, {}).items():
                 next_dist[nxt] = next_dist.get(nxt, 0.0) + prob * weight
