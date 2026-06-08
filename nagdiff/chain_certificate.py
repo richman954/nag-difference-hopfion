@@ -55,7 +55,13 @@ def path_hits_subset(path: list[State], subset: set[State]) -> bool:
 
 
 def path_hits_subset_at_most_once(path: list[State], subset: set[State]) -> bool:
-    return sum(1 for state in path if state in subset) <= 1
+    hits = 0
+    for state in path:
+        if state in subset:
+            hits += 1
+            if hits > 1:
+                return False
+    return True
 
 
 def all_paths_hit_antichain_at_most_once(
