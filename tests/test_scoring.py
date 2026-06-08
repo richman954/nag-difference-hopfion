@@ -1,6 +1,9 @@
+import math
+import pytest
+
 from nagdiff.hopfion_terms import SEEDED_BARRIER_DATA, load_barrier_table
 from nagdiff.pairwise import pairwise_difference_matrix
-from nagdiff.scoring import score_terms
+from nagdiff.scoring import score_terms, soft_selection_weights
 
 
 def _seed_barriers():
@@ -56,3 +59,57 @@ def test_load_barrier_table_extracted_mode(tmp_path):
     assert out["extracted_count"] == 3
     recs = {r["state"]: r for r in out["records"]}
     assert recs["skyrmion_antiskyrmion_merge_to_hopfion"]["provenance_status"] == "extracted_from_raw_moesm"
+
+
+def test_soft_selection_weights_normalization():
+    scores = [1.0, 2.0, 3.0]
+    weights = soft_selection_weights(scores)
+    assert math.isclose(sum(weights), 1.0)
+
+
+def test_soft_selection_weights_ordering():
+    scores = [1.0, 2.0, 3.0]
+    weights = soft_selection_weights(scores)
+    # Lower score should get higher weight
+    assert weights[0] > weights[1]
+    assert weights[1] > weights[2]
+
+
+def test_soft_selection_weights_equal_scores():
+    scores = [5.0, 5.0, 5.0]
+    weights = soft_selection_weights(scores)
+    assert math.isclose(sum(weights), 1.0)
+    assert math.isclose(weights[0], 1.0 / 3.0)
+    assert math.isclose(weights[1], 1.0 / 3.0)
+    assert math.isclose(weights[2], 1.0 / 3.0)
+
+
+def test_soft_selection_weights_temperature_scaling():
+    scores = [1.0, 2.0]
+    weights_t1 = soft_selection_weights(scores, temperature=1.0)
+    weights_t2 = soft_selection_weights(scores, temperature=2.0)
+
+    # At higher temperature, the distribution should be flatter (closer to uniform)
+    diff_t1 = abs(weights_t1[0] - weights_t1[1])
+    diff_t2 = abs(weights_t2[0] - weights_t2[1])
+    assert diff_t2 < diff_t1
+
+
+def test_soft_selection_weights_value_error():
+    with pytest.raises(ValueError, match="temperature must be positive"):
+        soft_selection_weights([1.0, 2.0], temperature=0.0)
+
+    with pytest.raises(ValueError, match="temperature must be positive"):
+        soft_selection_weights([1.0, 2.0], temperature=-1.0)
+
+
+def test_soft_selection_weights_empty():
+    with pytest.raises(ValueError):
+        soft_selection_weights([])
+
+
+def test_soft_selection_weights_single():
+    scores = [42.0]
+    weights = soft_selection_weights(scores)
+    assert len(weights) == 1
+    assert math.isclose(weights[0], 1.0)
