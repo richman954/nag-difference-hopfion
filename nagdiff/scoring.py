@@ -15,17 +15,20 @@ def score_terms(
     delta: float = 1e-12,
 ) -> list[float]:
     """Compute per-state scalar score before pairwise differencing."""
-    b = [float(x) for x in barrier]
-    om = [float(x) for x in observable_mismatch]
-    p = [float(x) for x in probability]
-    tp = [float(x) for x in topology_penalty]
     return [
-        b_i + alpha * om_i - beta * math.log(p_i + delta) + gamma * tp_i
-        for b_i, om_i, p_i, tp_i in zip(b, om, p, tp)
+        float(b_i)
+        + alpha * float(om_i)
+        - beta * math.log(float(p_i) + delta)
+        + gamma * float(tp_i)
+        for b_i, om_i, p_i, tp_i in zip(
+            barrier, observable_mismatch, probability, topology_penalty
+        )
     ]
 
 
-def soft_selection_weights(scores: Iterable[float], temperature: float = 1.0) -> list[float]:
+def soft_selection_weights(
+    scores: Iterable[float], temperature: float = 1.0
+) -> list[float]:
     """Convert scores to normalized selection weights; lower score => higher weight."""
     if temperature <= 0:
         raise ValueError("temperature must be positive")
