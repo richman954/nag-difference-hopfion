@@ -5,7 +5,6 @@ from __future__ import annotations
 from itertools import product
 from typing import Iterable
 
-
 State = str
 Kernel = dict[State, dict[State, float]]
 
@@ -43,8 +42,11 @@ def generate_paths(kernel: Kernel, start: State, steps: int) -> list[list[State]
 
 def is_antichain(nodes: Iterable[State], order_pairs: set[tuple[State, State]]) -> bool:
     node_list = list(nodes)
-    for i, a in enumerate(node_list):
-        for b in node_list[i + 1 :]:
+    n = len(node_list)
+    for i in range(n):
+        a = node_list[i]
+        for j in range(i + 1, n):
+            b = node_list[j]
             if (a, b) in order_pairs or (b, a) in order_pairs:
                 return False
     return True
