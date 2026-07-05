@@ -19,7 +19,7 @@ def is_antisymmetric(matrix: Sequence[Sequence[float]], tol: float = 1e-12) -> b
     for i in range(n):
         if len(matrix[i]) != n:
             return False
-        for j in range(n):
+        for j in range(i, n):
             if abs(float(matrix[i][j]) + float(matrix[j][i])) > tol:
                 return False
     return True
