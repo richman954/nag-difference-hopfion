@@ -53,6 +53,7 @@ def test_is_extraction_validated_success(tmp_path):
         "records": [
             {
                 "state": "skyrmion_antiskyrmion_merge_to_hopfion",
+                "barrier_pj": 1.0,
                 "source_file": "f",
                 "sheet_name": "s",
                 "row": 1,
@@ -63,6 +64,7 @@ def test_is_extraction_validated_success(tmp_path):
             },
             {
                 "state": "hopfion_collapse",
+                "barrier_pj": 1.0,
                 "source_file": "f",
                 "sheet_name": "s",
                 "row": 1,
@@ -73,6 +75,7 @@ def test_is_extraction_validated_success(tmp_path):
             },
             {
                 "state": "hopfion_escape",
+                "barrier_pj": 1.0,
                 "source_file": "f",
                 "sheet_name": "s",
                 "row": 1,
@@ -98,3 +101,49 @@ def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
         assert record["provenance_status"] == "raw_moesm_verification_pending"
+
+
+def test_extracts_from_named_moesm_directories_and_keeps_seeded_comparison(tmp_path):
+    moesm13 = tmp_path / "MOESM13"
+    moesm16 = tmp_path / "MOESM16"
+    moesm13.mkdir()
+    moesm16.mkdir()
+    (moesm13 / "barriers.csv").write_text(
+        "process,barrier\n"
+        "skyrmion antiskyrmion merge hopfion,1.11e-4\n"
+        "hopfion collapse,2.22e-4\n",
+        encoding="utf-8",
+    )
+    (moesm16 / "barriers.csv").write_text(
+        "process,barrier\nhopfion escape,3.33e-4\n",
+        encoding="utf-8",
+    )
+
+    table = load_barrier_table(raw_dir=tmp_path)
+
+    assert table["mode"] == "extracted"
+    assert [record["barrier_pj"] for record in table["records"]] == [1.11e-4, 2.22e-4, 3.33e-4]
+    assert table["seeded_records"][0]["barrier_pj"] == 2.24e-4
+    for record in table["records"]:
+        assert record["source_file"].endswith("barriers.csv")
+        assert record["sheet_name"] == "barriers"
+        assert record["row"] > 0
+        assert record["column"] > 0
+        assert record["unit"] == "pJ"
+        assert record["extraction_method"] == "keyword_row_scan_csv"
+        assert record["notes"]
+
+
+def test_partial_extraction_does_not_replace_any_seeded_values(tmp_path):
+    moesm13 = tmp_path / "MOESM13"
+    moesm13.mkdir()
+    (moesm13 / "barriers.csv").write_text(
+        "process,barrier\nhopfion collapse,9.99e-4\n",
+        encoding="utf-8",
+    )
+
+    table = load_barrier_table(raw_dir=tmp_path)
+
+    assert table["mode"] == "fallback"
+    assert [record["barrier_pj"] for record in table["records"]] == [2.24e-4, 2.86e-4, 7.32e-4]
+    assert all(record["extraction_method"] == "seeded_fallback" for record in table["records"])

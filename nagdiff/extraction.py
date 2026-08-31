@@ -4,7 +4,10 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import re
+import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
@@ -13,6 +16,12 @@ TARGETS = {
     "skyrmion_antiskyrmion_merge_to_hopfion": ["skyrmion", "antiskyrmion", "merge", "hopfion"],
     "hopfion_collapse": ["hopfion", "collapse"],
     "hopfion_escape": ["hopfion", "escape"],
+}
+
+TARGET_SOURCE = {
+    "skyrmion_antiskyrmion_merge_to_hopfion": "MOESM13",
+    "hopfion_collapse": "MOESM13",
+    "hopfion_escape": "MOESM16",
 }
 
 STRICT_CSV_MAPPING = {
@@ -38,7 +47,10 @@ class ExtractedBarrier:
 
 
 def _iter_moesm_files(raw_dir: Path) -> Iterable[Path]:
-    patterns = ["MOESM13*.csv", "MOESM16*.csv", "MOESM13/*.csv", "MOESM16/*.csv"]
+    patterns = [
+        "MOESM13*.csv", "MOESM16*.csv", "MOESM13/*.csv", "MOESM16/*.csv",
+        "MOESM13*.xlsx", "MOESM16*.xlsx", "MOESM13/*.xlsx", "MOESM16/*.xlsx",
+    ]
     seen: set[Path] = set()
     for pattern in patterns:
         for p in raw_dir.glob(pattern):
@@ -62,6 +74,55 @@ def _normalize_to_pj(val: float) -> float:
     if val > 1e-2:
         return val * 1e-12
     return val
+
+
+def _xlsx_rows(path: Path) -> Iterable[tuple[str, list[tuple[int, str]]]]:
+    """Yield worksheet rows without requiring a heavyweight spreadsheet dependency."""
+    ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    rel_ns = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+    pkg_ns = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+    with zipfile.ZipFile(path) as book:
+        shared: list[str] = []
+        if "xl/sharedStrings.xml" in book.namelist():
+            root = ET.fromstring(book.read("xl/sharedStrings.xml"))
+            shared = ["".join(node.itertext()) for node in root.findall(f"{ns}si")]
+
+        workbook = ET.fromstring(book.read("xl/workbook.xml"))
+        relationships = ET.fromstring(book.read("xl/_rels/workbook.xml.rels"))
+        targets = {rel.attrib["Id"]: rel.attrib["Target"] for rel in relationships.findall(f"{pkg_ns}Relationship")}
+        for sheet in workbook.find(f"{ns}sheets") or []:
+            sheet_name = sheet.attrib["name"]
+            target = targets[sheet.attrib[f"{rel_ns}id"]].lstrip("/")
+            member = target if target.startswith("xl/") else f"xl/{target}"
+            root = ET.fromstring(book.read(member))
+            for row in root.findall(f".//{ns}row"):
+                cells: list[tuple[int, str]] = []
+                for cell in row.findall(f"{ns}c"):
+                    letters = re.match(r"[A-Z]+", cell.attrib.get("r", "A"))
+                    column = 0
+                    for char in letters.group(0) if letters else "A":
+                        column = column * 26 + ord(char) - 64
+                    value = cell.find(f"{ns}v")
+                    inline = cell.find(f"{ns}is")
+                    text = "" if value is None else (value.text or "")
+                    if cell.attrib.get("t") == "s" and text:
+                        text = shared[int(text)]
+                    elif inline is not None:
+                        text = "".join(inline.itertext())
+                    cells.append((column, text))
+                yield sheet_name, cells
+
+
+def _tabular_rows(path: Path) -> Iterable[tuple[str, int, list[tuple[int, str]]]]:
+    if path.suffix.lower() == ".xlsx":
+        counters: dict[str, int] = {}
+        for sheet, cells in _xlsx_rows(path):
+            counters[sheet] = counters.get(sheet, 0) + 1
+            yield sheet, counters[sheet], cells
+        return
+    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+        for row_number, row in enumerate(csv.reader(fh), start=1):
+            yield path.stem, row_number, list(enumerate(row, start=1))
 
 
 def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, str]:
@@ -100,37 +161,39 @@ def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     return results
 
 
-def _extract_keyword_csv(raw_dir: Path) -> list[ExtractedBarrier]:
+def _extract_keyword_tables(raw_dir: Path) -> list[ExtractedBarrier]:
     results: dict[str, ExtractedBarrier] = {}
     for file in _iter_moesm_files(raw_dir):
-        with file.open("r", encoding="utf-8", newline="") as fh:
-            reader = csv.reader(fh)
-            for r_idx, row in enumerate(reader, start=1):
-                for c_idx, cell in enumerate(row, start=1):
-                    text = (cell or "").strip().lower()
-                    if not text:
+        source_group = "MOESM13" if "moesm13" in str(file).lower() else "MOESM16"
+        for sheet_name, r_idx, row in _tabular_rows(file):
+            for position, (c_idx, cell) in enumerate(row):
+                cell_text = (cell or "").strip().lower()
+                if not cell_text:
+                    continue
+                for state, keywords in TARGETS.items():
+                    if state in results or TARGET_SOURCE[state] != source_group:
                         continue
-                    for state, keywords in TARGETS.items():
-                        if state in results:
-                            continue
-                        if all(k in text for k in keywords):
-                            for scan_c in range(c_idx, min(c_idx + 6, len(row) + 1)):
-                                m = NUM_RE.search(row[scan_c - 1])
-                                if not m:
-                                    continue
-                                val = _normalize_to_pj(float(m.group(0)))
-                                results[state] = ExtractedBarrier(
-                                    state=state,
-                                    barrier_pj=val,
-                                    source_file=str(file),
-                                    sheet_name=file.stem,
-                                    row=r_idx,
-                                    column=scan_c,
-                                    unit="pJ",
-                                    extraction_method="keyword_row_scan_csv",
-                                    notes="Extracted from MOESM raw CSV by keyword and nearest numeric cell.",
-                                )
-                                break
+                    if all(keyword in cell_text for keyword in keywords):
+                        for scan_c, candidate in row[position : position + 6]:
+                            match = NUM_RE.search(candidate)
+                            if not match:
+                                continue
+                            val = _normalize_to_pj(float(match.group(0)))
+                            results[state] = ExtractedBarrier(
+                                state=state,
+                                barrier_pj=val,
+                                source_file=str(file),
+                                sheet_name=sheet_name,
+                                row=r_idx,
+                                column=scan_c,
+                                unit="pJ",
+                                extraction_method=f"keyword_row_scan_{file.suffix.lower().lstrip('.')}",
+                                notes=(
+                                    f"Extracted from raw {source_group} table by target keywords "
+                                    "and nearest numeric cell; numeric value normalized to pJ."
+                                ),
+                            )
+                            break
     return [results[s] for s in TARGETS if s in results]
 
 
@@ -139,11 +202,11 @@ def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "aut
     if mode == "strict":
         return _extract_strict_csv(raw_path)
     if mode == "heuristic":
-        return _extract_keyword_csv(raw_path)
+        return _extract_keyword_tables(raw_path)
     strict_records = _extract_strict_csv(raw_path)
     if len(strict_records) == len(TARGETS):
         return strict_records
-    return _extract_keyword_csv(raw_path)
+    return _extract_keyword_tables(raw_path)
 
 
 def is_extraction_validated(payload: dict[str, object]) -> bool:
@@ -162,6 +225,9 @@ def is_extraction_validated(payload: dict[str, object]) -> bool:
 
     for record in records:
         if record.get("extraction_method") == "seeded_fallback":
+            return False
+        barrier = record.get("barrier_pj")
+        if not isinstance(barrier, (int, float)) or not math.isfinite(barrier) or barrier <= 0:
             return False
         for field in required_fields:
             if field not in record or record[field] in (None, ""):
@@ -190,7 +256,7 @@ def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: s
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract hopfion barriers from raw MOESM CSV files.")
+    parser = argparse.ArgumentParser(description="Extract hopfion barriers from raw MOESM CSV/XLSX tables.")
     parser.add_argument("--raw", default="data/raw", help="Raw data directory")
     parser.add_argument("--out", default="data/processed/extracted_barriers.json", help="Output JSON artifact path")
     parser.add_argument("--mode", default="auto", choices=["auto", "strict", "heuristic"], help="Extraction mode")
