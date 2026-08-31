@@ -61,8 +61,13 @@ See `data/processed/EXTRACTION_STATUS.md` for explicit extraction status.
 
 ## Raw MOESM extraction behavior
 
-`load_barrier_table()` attempts extraction from `data/raw/MOESM13*` and `data/raw/MOESM16*` CSV files first.
-Only states with successful extraction replace seeded fallback values; otherwise provisional seeded values are retained with `seeded_fallback` provenance fields.
+`load_barrier_table()` attempts extraction from CSV/XLSX tables in
+`data/raw/MOESM13/` and `data/raw/MOESM16/` (and directly named `MOESM13*` /
+`MOESM16*` files). The repository snapshot ZIP uploads contain no MOESM source
+tables and are deliberately not treated as raw scientific data.
+Only a complete, validated extraction of all three states replaces the active
+seeded fallback table; otherwise all provisional seeded values are retained
+with `seeded_fallback` provenance fields.
 The seeded table is always kept available for side-by-side comparison and auditability.
 
 
