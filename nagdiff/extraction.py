@@ -161,39 +161,50 @@ def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     return results
 
 
+def _extract_from_row(
+    file: Path,
+    sheet_name: str,
+    r_idx: int,
+    row: list[tuple[int, str]],
+    source_group: str,
+    results: dict[str, ExtractedBarrier],
+) -> None:
+    for position, (c_idx, cell) in enumerate(row):
+        cell_text = (cell or "").strip().lower()
+        if not cell_text:
+            continue
+        for state, keywords in TARGETS.items():
+            if state in results or TARGET_SOURCE[state] != source_group:
+                continue
+            if all(keyword in cell_text for keyword in keywords):
+                for scan_c, candidate in row[position : position + 6]:
+                    match = NUM_RE.search(candidate)
+                    if not match:
+                        continue
+                    val = _normalize_to_pj(float(match.group(0)))
+                    results[state] = ExtractedBarrier(
+                        state=state,
+                        barrier_pj=val,
+                        source_file=str(file),
+                        sheet_name=sheet_name,
+                        row=r_idx,
+                        column=scan_c,
+                        unit="pJ",
+                        extraction_method=f"keyword_row_scan_{file.suffix.lower().lstrip('.')}",
+                        notes=(
+                            f"Extracted from raw {source_group} table by target keywords "
+                            "and nearest numeric cell; numeric value normalized to pJ."
+                        ),
+                    )
+                    break
+
+
 def _extract_keyword_tables(raw_dir: Path) -> list[ExtractedBarrier]:
     results: dict[str, ExtractedBarrier] = {}
     for file in _iter_moesm_files(raw_dir):
         source_group = "MOESM13" if "moesm13" in str(file).lower() else "MOESM16"
         for sheet_name, r_idx, row in _tabular_rows(file):
-            for position, (c_idx, cell) in enumerate(row):
-                cell_text = (cell or "").strip().lower()
-                if not cell_text:
-                    continue
-                for state, keywords in TARGETS.items():
-                    if state in results or TARGET_SOURCE[state] != source_group:
-                        continue
-                    if all(keyword in cell_text for keyword in keywords):
-                        for scan_c, candidate in row[position : position + 6]:
-                            match = NUM_RE.search(candidate)
-                            if not match:
-                                continue
-                            val = _normalize_to_pj(float(match.group(0)))
-                            results[state] = ExtractedBarrier(
-                                state=state,
-                                barrier_pj=val,
-                                source_file=str(file),
-                                sheet_name=sheet_name,
-                                row=r_idx,
-                                column=scan_c,
-                                unit="pJ",
-                                extraction_method=f"keyword_row_scan_{file.suffix.lower().lstrip('.')}",
-                                notes=(
-                                    f"Extracted from raw {source_group} table by target keywords "
-                                    "and nearest numeric cell; numeric value normalized to pJ."
-                                ),
-                            )
-                            break
+            _extract_from_row(file, sheet_name, r_idx, row, source_group, results)
     return [results[s] for s in TARGETS if s in results]
 
 
