@@ -53,3 +53,15 @@ def test_hitting_probability_bounded():
 def test_generate_paths_negative_steps_raises():
     with pytest.raises(ValueError):
         generate_paths({"s": {"s": 1.0}}, "s", -1)
+
+
+def test_hitting_probabilities_invalid_kernel_raises():
+    invalid_kernel = {"a": {"a": 0.8, "b": 0.4}}
+    with pytest.raises(ValueError):
+        hitting_probabilities(invalid_kernel, {"a": 1.0}, {"b"}, steps=3)
+
+
+def test_hitting_probabilities_negative_steps_raises():
+    valid_kernel = {"a": {"a": 0.4, "b": 0.5}}
+    with pytest.raises(ValueError):
+        hitting_probabilities(valid_kernel, {"a": 1.0}, {"b"}, steps=-1)
