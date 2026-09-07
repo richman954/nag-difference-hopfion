@@ -98,9 +98,9 @@ def _xlsx_rows(path: Path) -> Iterable[tuple[str, list[tuple[int, str]]]]:
             for row in root.findall(f".//{ns}row"):
                 cells: list[tuple[int, str]] = []
                 for cell in row.findall(f"{ns}c"):
-                    letters = re.match(r"[A-Z]+", cell.attrib.get("r", "A"))
+                    letters = cell.attrib.get("r", "A").rstrip("0123456789")
                     column = 0
-                    for char in letters.group(0) if letters else "A":
+                    for char in letters if letters else "A":
                         column = column * 26 + ord(char) - 64
                     value = cell.find(f"{ns}v")
                     inline = cell.find(f"{ns}is")
