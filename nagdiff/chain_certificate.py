@@ -10,14 +10,16 @@ Kernel = dict[State, dict[State, float]]
 
 
 def row_masses(kernel: Kernel) -> dict[State, float]:
-    return {state: sum(transitions.values()) for state, transitions in kernel.items()}
+    return {
+        state: sum(iter(transitions.values())) for state, transitions in kernel.items()
+    }
 
 
 def validate_submarkov_kernel(kernel: Kernel, tol: float = 1e-12) -> bool:
     for transitions in kernel.values():
         if any(weight < -tol for weight in transitions.values()):
             return False
-        if sum(transitions.values()) > 1.0 + tol:
+        if sum(iter(transitions.values())) > 1.0 + tol:
             return False
     return True
 
