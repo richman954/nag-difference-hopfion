@@ -1,6 +1,7 @@
 from nagdiff.hopfion_terms import SEEDED_BARRIER_DATA, load_barrier_table
 from nagdiff.pairwise import pairwise_difference_matrix
-from nagdiff.scoring import score_terms
+from nagdiff.scoring import score_terms, soft_selection_weights
+import pytest
 
 
 def _seed_barriers():
@@ -56,3 +57,10 @@ def test_load_barrier_table_extracted_mode(tmp_path):
     assert out["extracted_count"] == 3
     recs = {r["state"]: r for r in out["records"]}
     assert recs["skyrmion_antiskyrmion_merge_to_hopfion"]["provenance_status"] == "extracted_from_raw_moesm"
+
+
+def test_soft_selection_weights_negative_temperature():
+    with pytest.raises(ValueError):
+        soft_selection_weights([1.0, 2.0], temperature=0.0)
+    with pytest.raises(ValueError):
+        soft_selection_weights([1.0, 2.0], temperature=-1.0)
