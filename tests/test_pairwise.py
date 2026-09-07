@@ -11,3 +11,8 @@ def test_diagonal_zero():
     values = [1.0, 2.0, 3.0]
     d = pairwise_difference_matrix(values)
     assert all(abs(d[i][i]) < 1e-12 for i in range(len(values)))
+
+
+def test_not_antisymmetric():
+    matrix = [[0.0, 1.0], [1.0, 0.0]]
+    assert not is_antisymmetric(matrix)
