@@ -53,3 +53,11 @@ def test_hitting_probability_bounded():
 def test_generate_paths_negative_steps_raises():
     with pytest.raises(ValueError):
         generate_paths({"s": {"s": 1.0}}, "s", -1)
+
+
+def test_generate_paths_dead_end():
+    kernel = {"start": {"dead_end": 1.0}}
+    # Requesting 2 steps, but dead_end has no outgoing transitions
+    paths = generate_paths(kernel, "start", 2)
+    # The path should stop at dead_end and be preserved
+    assert paths == [["start", "dead_end"]]
