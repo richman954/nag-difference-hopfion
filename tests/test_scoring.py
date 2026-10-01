@@ -1,3 +1,5 @@
+import pytest
+
 from nagdiff.hopfion_terms import SEEDED_BARRIER_DATA, load_barrier_table
 from nagdiff.pairwise import pairwise_difference_matrix
 from nagdiff.scoring import score_terms
@@ -56,3 +58,8 @@ def test_load_barrier_table_extracted_mode(tmp_path):
     assert out["extracted_count"] == 3
     recs = {r["state"]: r for r in out["records"]}
     assert recs["skyrmion_antiskyrmion_merge_to_hopfion"]["provenance_status"] == "extracted_from_raw_moesm"
+
+
+def test_score_terms_mismatched_lengths():
+    with pytest.raises(ValueError, match=r"zip\(\) argument \d+ is shorter than argument \d+"):
+        score_terms([1.0, 2.0], [0.0], [1.0, 1.0], [0.0, 0.0])

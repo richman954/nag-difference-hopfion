@@ -21,7 +21,7 @@ def score_terms(
     tp = [float(x) for x in topology_penalty]
     return [
         b_i + alpha * om_i - beta * math.log(p_i + delta) + gamma * tp_i
-        for b_i, om_i, p_i, tp_i in zip(b, om, p, tp)
+        for b_i, om_i, p_i, tp_i in zip(b, om, p, tp, strict=True)
     ]
 
 
