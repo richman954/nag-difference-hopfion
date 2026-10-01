@@ -1,6 +1,6 @@
 from nagdiff.hopfion_terms import SEEDED_BARRIER_DATA, load_barrier_table
 from nagdiff.pairwise import pairwise_difference_matrix
-from nagdiff.scoring import score_terms
+from nagdiff.scoring import score_terms, ScoreData, ScoreWeights
 
 
 def _seed_barriers():
@@ -13,7 +13,14 @@ def test_merge_beats_collapse_with_seeded_barriers():
         barriers["skyrmion_antiskyrmion_merge_to_hopfion"],
         barriers["hopfion_collapse"],
     ]
-    scores = score_terms(values, [0, 0], [1, 1], [0, 0], alpha=0, beta=0, gamma=0)
+    data = ScoreData(
+        barrier=values,
+        observable_mismatch=[0, 0],
+        probability=[1, 1],
+        topology_penalty=[0, 0],
+    )
+    weights = ScoreWeights(alpha=0, beta=0, gamma=0)
+    scores = score_terms(data, weights)
     d = pairwise_difference_matrix(scores)
     assert d[0][1] < 0
 
@@ -24,7 +31,14 @@ def test_merge_beats_escape_with_seeded_barriers():
         barriers["skyrmion_antiskyrmion_merge_to_hopfion"],
         barriers["hopfion_escape"],
     ]
-    scores = score_terms(values, [0, 0], [1, 1], [0, 0], alpha=0, beta=0, gamma=0)
+    data = ScoreData(
+        barrier=values,
+        observable_mismatch=[0, 0],
+        probability=[1, 1],
+        topology_penalty=[0, 0],
+    )
+    weights = ScoreWeights(alpha=0, beta=0, gamma=0)
+    scores = score_terms(data, weights)
     d = pairwise_difference_matrix(scores)
     assert d[0][1] < 0
 
