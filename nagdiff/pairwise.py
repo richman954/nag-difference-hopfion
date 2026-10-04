@@ -16,10 +16,16 @@ def pairwise_difference_matrix(values: Iterable[float]) -> list[list[float]]:
 def is_antisymmetric(matrix: Sequence[Sequence[float]], tol: float = 1e-12) -> bool:
     """Check whether matrix is antisymmetric within tolerance."""
     n = len(matrix)
+    f_matrix = []
     for i in range(n):
-        if len(matrix[i]) != n:
+        row = matrix[i]
+        if len(row) != n:
             return False
+        f_matrix.append([float(x) for x in row])
+
+    for i in range(n):
+        row_i = f_matrix[i]
         for j in range(n):
-            if abs(float(matrix[i][j]) + float(matrix[j][i])) > tol:
+            if abs(row_i[j] + f_matrix[j][i]) > tol:
                 return False
     return True
