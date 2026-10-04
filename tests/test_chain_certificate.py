@@ -53,3 +53,11 @@ def test_hitting_probability_bounded():
 def test_generate_paths_negative_steps_raises():
     with pytest.raises(ValueError):
         generate_paths({"s": {"s": 1.0}}, "s", -1)
+
+
+def test_generate_paths_terminal_state():
+    kernel = {"s": {"a": 1.0}}
+    # "a" is a dead-end state because it has no entry in the kernel
+    paths = generate_paths(kernel, "s", steps=3)
+    # the path should be ["s", "a"] because it can't extend beyond "a"
+    assert paths == [["s", "a"]]
