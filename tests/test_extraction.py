@@ -147,3 +147,40 @@ def test_partial_extraction_does_not_replace_any_seeded_values(tmp_path):
     assert table["mode"] == "fallback"
     assert [record["barrier_pj"] for record in table["records"]] == [2.24e-4, 2.86e-4, 7.32e-4]
     assert all(record["extraction_method"] == "seeded_fallback" for record in table["records"])
+
+
+def test_main(tmp_path, monkeypatch, capsys):
+    from nagdiff.extraction import main
+    import sys
+
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    out_file = tmp_path / "out.json"
+
+    # Setup some dummy data to simulate extraction
+    moesm13 = raw_dir / "MOESM13"
+    moesm16 = raw_dir / "MOESM16"
+    moesm13.mkdir()
+    moesm16.mkdir()
+    (moesm13 / "barriers.csv").write_text(
+        "process,barrier\n"
+        "skyrmion antiskyrmion merge hopfion,1.11e-4\n"
+        "hopfion collapse,2.22e-4\n",
+        encoding="utf-8",
+    )
+    (moesm16 / "barriers.csv").write_text(
+        "process,barrier\nhopfion escape,3.33e-4\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["extraction.py", "--raw", str(raw_dir), "--out", str(out_file), "--mode", "heuristic"])
+    main()
+
+    captured = capsys.readouterr()
+    assert str(out_file) in captured.out
+    assert "wrote " in captured.out
+    assert "extracted records (mode=heuristic)" in captured.out
+    assert out_file.exists()
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["extracted_count"] == 3
