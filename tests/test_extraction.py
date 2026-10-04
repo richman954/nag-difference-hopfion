@@ -97,6 +97,50 @@ def test_is_extraction_validated_fails_on_empty(tmp_path):
     assert is_extraction_validated(payload) is False
 
 
+def test_is_extraction_validated_fails_on_invalid_barrier(tmp_path):
+    from nagdiff.extraction import is_extraction_validated
+    payload = {
+        "extracted_count": 3,
+        "records": [
+            {
+                "state": "skyrmion_antiskyrmion_merge_to_hopfion",
+                "barrier_pj": 1.0,
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            },
+            {
+                "state": "hopfion_collapse",
+                "barrier_pj": -1.0,
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            },
+            {
+                "state": "hopfion_escape",
+                "barrier_pj": 1.0,
+                "source_file": "f",
+                "sheet_name": "s",
+                "row": 1,
+                "column": 1,
+                "unit": "pJ",
+                "extraction_method": "f",
+                "notes": "n"
+            }
+        ],
+        "checksums": {"f": "c"}
+    }
+    assert is_extraction_validated(payload) is False
+
+
 def test_fallback_values_marked_raw_moesm_verification_pending(tmp_path):
     table = load_barrier_table(raw_dir=tmp_path)
     for record in table["records"]:
