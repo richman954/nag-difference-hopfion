@@ -147,3 +147,114 @@ def test_partial_extraction_does_not_replace_any_seeded_values(tmp_path):
     assert table["mode"] == "fallback"
     assert [record["barrier_pj"] for record in table["records"]] == [2.24e-4, 2.86e-4, 7.32e-4]
     assert all(record["extraction_method"] == "seeded_fallback" for record in table["records"])
+
+def test_xlsx_rows_extraction(tmp_path):
+    import zipfile
+    from nagdiff.extraction import _xlsx_rows
+
+    xlsx_path = tmp_path / "test.xlsx"
+    ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    rel_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    pkg_ns = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+    with zipfile.ZipFile(xlsx_path, 'w') as zf:
+        zf.writestr('xl/workbook.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="{ns}" xmlns:r="{rel_ns}">
+    <sheets>
+        <sheet name="Sheet1" r:id="rId1"/>
+        <sheet name="Sheet2" r:id="rId2"/>
+    </sheets>
+</workbook>''')
+
+        zf.writestr('xl/_rels/workbook.xml.rels', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="{pkg_ns}">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="/xl/worksheets/sheet2.xml"/>
+</Relationships>''')
+
+        zf.writestr('xl/sharedStrings.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="{ns}">
+    <si><t>Shared string 1</t></si>
+    <si><t>Shared string 2</t></si>
+</sst>''')
+
+        zf.writestr('xl/worksheets/sheet1.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="{ns}">
+    <sheetData>
+        <row r="1">
+            <c r="A1" t="s"><v>0</v></c>
+            <c r="B1"><is><t>Inline string</t></is></c>
+            <c r="C1"><v>123.45</v></c>
+            <c r="AA1"><v>0.001</v></c>
+            <c r="AB1" t="s"><v></v></c>
+            <c r="AC1" t="s"></c>
+            <c r="Z1"/>
+        </row>
+    </sheetData>
+</worksheet>''')
+
+        zf.writestr('xl/worksheets/sheet2.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="{ns}">
+    <sheetData>
+        <row r="1">
+            <c r="A1" t="s"><v>1</v></c>
+        </row>
+    </sheetData>
+</worksheet>''')
+
+    rows = list(_xlsx_rows(xlsx_path))
+
+    assert len(rows) == 2
+
+    sheet1_name, sheet1_cells = rows[0]
+    assert sheet1_name == "Sheet1"
+    assert sheet1_cells == [
+        (1, 'Shared string 1'),
+        (2, 'Inline string'),
+        (3, '123.45'),
+        (27, '0.001'),
+        (28, ''),
+        (29, ''),
+        (26, '')
+    ]
+
+    sheet2_name, sheet2_cells = rows[1]
+    assert sheet2_name == "Sheet2"
+    assert sheet2_cells == [(1, 'Shared string 2')]
+
+
+def test_xlsx_rows_no_shared_strings(tmp_path):
+    import zipfile
+    from nagdiff.extraction import _xlsx_rows
+
+    xlsx_path = tmp_path / "test_no_shared.xlsx"
+    ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    rel_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    pkg_ns = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+    with zipfile.ZipFile(xlsx_path, 'w') as zf:
+        zf.writestr('xl/workbook.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="{ns}" xmlns:r="{rel_ns}">
+    <sheets>
+        <sheet name="Sheet1" r:id="rId1"/>
+    </sheets>
+</workbook>''')
+
+        zf.writestr('xl/_rels/workbook.xml.rels', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="{pkg_ns}">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>''')
+
+        zf.writestr('xl/worksheets/sheet1.xml', f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="{ns}">
+    <sheetData>
+        <row r="1">
+            <c r="A1"><v>123</v></c>
+        </row>
+    </sheetData>
+</worksheet>''')
+
+    rows = list(_xlsx_rows(xlsx_path))
+    assert len(rows) == 1
+    assert rows[0][0] == "Sheet1"
+    assert rows[0][1] == [(1, '123')]
