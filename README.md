@@ -59,25 +59,25 @@ The following seeded values are **provisional placeholders** from prior notes, a
 See `data/processed/EXTRACTION_STATUS.md` for explicit extraction status.
 
 
-## Raw MOESM extraction behavior
+## Authoritative barrier source data
 
-`load_barrier_table()` attempts extraction from CSV/XLSX tables in
-`data/raw/MOESM13/` and `data/raw/MOESM16/` (and directly named `MOESM13*` /
-`MOESM16*` files). The repository snapshot ZIP uploads contain no MOESM source
-tables and are deliberately not treated as raw scientific data.
-Only a complete, validated extraction of all three states replaces the active
-seeded fallback table; otherwise all provisional seeded values are retained
-with `seeded_fallback` provenance fields.
-The seeded table is always kept available for side-by-side comparison and auditability.
+The cited 2026 Nature Physics article publishes the relevant minimum-energy-path
+simulation datasets as **Source Data Fig. 5** and **Source Data Extended Data
+Fig. 9** XLSX files. Those publisher-provided workbooks are the authoritative
+inputs for validating the three barrier paths used by this benchmark.
 
+The current extraction module still contains legacy `MOESM13` / `MOESM16`
+routing assumptions. Those names are not established as the publisher's source
+data identifiers and should be treated as scaffold history, not provenance.
+Do not rename unrelated files to satisfy that convention.
 
-### Extraction modes
+Until the actual source-data workbooks are downloaded, checksummed, mapped, and
+validated, the full seeded table remains active with `seeded_fallback`
+provenance. The seeded table is retained permanently for side-by-side audit
+comparison.
 
-- `auto`: use deterministic strict mapping when complete; otherwise fallback to heuristic keyword scan.
-- `strict`: deterministic `file/row/column` extraction only.
-- `heuristic`: keyword + nearby numeric scan (scaffold fallback).
-
-Comparison report output can be produced with `nagdiff.reporting.write_extraction_comparison_csv(...)`.
+See `docs/raw_extraction_protocol.md` and `CODEX_TASKS.md` for the current
+authoritative-data checkpoint.
 
 ## Quick start
 
