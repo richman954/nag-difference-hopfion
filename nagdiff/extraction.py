@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Iterable
 
 TARGETS = {
-    "skyrmion_antiskyrmion_merge_to_hopfion": ["skyrmion", "antiskyrmion", "merge", "hopfion"],
+    "skyrmion_antiskyrmion_merge_to_hopfion": [
+        "skyrmion",
+        "antiskyrmion",
+        "merge",
+        "hopfion",
+    ],
     "hopfion_collapse": ["hopfion", "collapse"],
     "hopfion_escape": ["hopfion", "escape"],
 }
@@ -25,7 +30,11 @@ TARGET_SOURCE = {
 }
 
 STRICT_CSV_MAPPING = {
-    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2},
+    "skyrmion_antiskyrmion_merge_to_hopfion": {
+        "file": "MOESM13.csv",
+        "row": 2,
+        "column": 2,
+    },
     "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2},
     "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2},
 }
@@ -48,8 +57,14 @@ class ExtractedBarrier:
 
 def _iter_moesm_files(raw_dir: Path) -> Iterable[Path]:
     patterns = [
-        "MOESM13*.csv", "MOESM16*.csv", "MOESM13/*.csv", "MOESM16/*.csv",
-        "MOESM13*.xlsx", "MOESM16*.xlsx", "MOESM13/*.xlsx", "MOESM16/*.xlsx",
+        "MOESM13*.csv",
+        "MOESM16*.csv",
+        "MOESM13/*.csv",
+        "MOESM16/*.csv",
+        "MOESM13*.xlsx",
+        "MOESM16*.xlsx",
+        "MOESM13/*.xlsx",
+        "MOESM16/*.xlsx",
     ]
     seen: set[Path] = set()
     for pattern in patterns:
@@ -81,6 +96,13 @@ def _xlsx_rows(path: Path) -> Iterable[tuple[str, list[tuple[int, str]]]]:
     ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
     rel_ns = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
     pkg_ns = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+
+    query_row = f".//{ns}row"
+    query_c = f"{ns}c"
+    query_v = f"{ns}v"
+    query_is = f"{ns}is"
+    col_re = re.compile(r"[A-Z]+")
+
     with zipfile.ZipFile(path) as book:
         shared: list[str] = []
         if "xl/sharedStrings.xml" in book.namelist():
@@ -89,21 +111,26 @@ def _xlsx_rows(path: Path) -> Iterable[tuple[str, list[tuple[int, str]]]]:
 
         workbook = ET.fromstring(book.read("xl/workbook.xml"))
         relationships = ET.fromstring(book.read("xl/_rels/workbook.xml.rels"))
-        targets = {rel.attrib["Id"]: rel.attrib["Target"] for rel in relationships.findall(f"{pkg_ns}Relationship")}
-        for sheet in workbook.find(f"{ns}sheets") or []:
+        targets = {
+            rel.attrib["Id"]: rel.attrib["Target"]
+            for rel in relationships.findall(f"{pkg_ns}Relationship")
+        }
+
+        sheets_node = workbook.find(f"{ns}sheets")
+        for sheet in (sheets_node if sheets_node is not None else []):
             sheet_name = sheet.attrib["name"]
             target = targets[sheet.attrib[f"{rel_ns}id"]].lstrip("/")
             member = target if target.startswith("xl/") else f"xl/{target}"
             root = ET.fromstring(book.read(member))
-            for row in root.findall(f".//{ns}row"):
+            for row in root.findall(query_row):
                 cells: list[tuple[int, str]] = []
-                for cell in row.findall(f"{ns}c"):
-                    letters = re.match(r"[A-Z]+", cell.attrib.get("r", "A"))
+                for cell in row.findall(query_c):
+                    letters = col_re.match(cell.attrib.get("r", "A"))
                     column = 0
                     for char in letters.group(0) if letters else "A":
                         column = column * 26 + ord(char) - 64
-                    value = cell.find(f"{ns}v")
-                    inline = cell.find(f"{ns}is")
+                    value = cell.find(query_v)
+                    inline = cell.find(query_is)
                     text = "" if value is None else (value.text or "")
                     if cell.attrib.get("t") == "s" and text:
                         text = shared[int(text)]
@@ -197,7 +224,9 @@ def _extract_keyword_tables(raw_dir: Path) -> list[ExtractedBarrier]:
     return [results[s] for s in TARGETS if s in results]
 
 
-def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "auto") -> list[ExtractedBarrier]:
+def extract_barriers_from_raw(
+    raw_dir: str | Path = "data/raw", mode: str = "auto"
+) -> list[ExtractedBarrier]:
     raw_path = Path(raw_dir)
     if mode == "strict":
         return _extract_strict_csv(raw_path)
@@ -221,13 +250,25 @@ def is_extraction_validated(payload: dict[str, object]) -> bool:
     expected_states = set(TARGETS.keys())
     found_states = set()
 
-    required_fields = ["source_file", "sheet_name", "row", "column", "unit", "extraction_method", "notes"]
+    required_fields = [
+        "source_file",
+        "sheet_name",
+        "row",
+        "column",
+        "unit",
+        "extraction_method",
+        "notes",
+    ]
 
     for record in records:
         if record.get("extraction_method") == "seeded_fallback":
             return False
         barrier = record.get("barrier_pj")
-        if not isinstance(barrier, (int, float)) or not math.isfinite(barrier) or barrier <= 0:
+        if (
+            not isinstance(barrier, (int, float))
+            or not math.isfinite(barrier)
+            or barrier <= 0
+        ):
             return False
         for field in required_fields:
             if field not in record or record[field] in (None, ""):
@@ -240,7 +281,9 @@ def is_extraction_validated(payload: dict[str, object]) -> bool:
     return True
 
 
-def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict[str, object]:
+def write_extraction_artifact(
+    raw_dir: str | Path, out_path: str | Path, mode: str = "auto"
+) -> dict[str, object]:
     extracted = extract_barriers_from_raw(raw_dir, mode=mode)
     payload = {
         "raw_dir": str(raw_dir),
@@ -256,13 +299,26 @@ def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: s
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract hopfion barriers from raw MOESM CSV/XLSX tables.")
+    parser = argparse.ArgumentParser(
+        description="Extract hopfion barriers from raw MOESM CSV/XLSX tables."
+    )
     parser.add_argument("--raw", default="data/raw", help="Raw data directory")
-    parser.add_argument("--out", default="data/processed/extracted_barriers.json", help="Output JSON artifact path")
-    parser.add_argument("--mode", default="auto", choices=["auto", "strict", "heuristic"], help="Extraction mode")
+    parser.add_argument(
+        "--out",
+        default="data/processed/extracted_barriers.json",
+        help="Output JSON artifact path",
+    )
+    parser.add_argument(
+        "--mode",
+        default="auto",
+        choices=["auto", "strict", "heuristic"],
+        help="Extraction mode",
+    )
     args = parser.parse_args()
     payload = write_extraction_artifact(args.raw, args.out, mode=args.mode)
-    print(f"wrote {args.out} with {payload['extracted_count']} extracted records (mode={args.mode})")
+    print(
+        f"wrote {args.out} with {payload['extracted_count']} extracted records (mode={args.mode})"
+    )
 
 
 if __name__ == "__main__":
