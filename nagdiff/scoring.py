@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Iterable
+
+
+@dataclass
+class ScoreConfig:
+    alpha: float = 1.0
+    beta: float = 1.0
+    gamma: float = 1.0
+    delta: float = 1e-12
 
 
 def score_terms(
@@ -9,18 +18,18 @@ def score_terms(
     observable_mismatch: Iterable[float],
     probability: Iterable[float],
     topology_penalty: Iterable[float],
-    alpha: float = 1.0,
-    beta: float = 1.0,
-    gamma: float = 1.0,
-    delta: float = 1e-12,
+    config: ScoreConfig | None = None,
 ) -> list[float]:
     """Compute per-state scalar score before pairwise differencing."""
+    if config is None:
+        config = ScoreConfig()
+
     b = [float(x) for x in barrier]
     om = [float(x) for x in observable_mismatch]
     p = [float(x) for x in probability]
     tp = [float(x) for x in topology_penalty]
     return [
-        b_i + alpha * om_i - beta * math.log(p_i + delta) + gamma * tp_i
+        b_i + config.alpha * om_i - config.beta * math.log(p_i + config.delta) + config.gamma * tp_i
         for b_i, om_i, p_i, tp_i in zip(b, om, p, tp)
     ]
 
