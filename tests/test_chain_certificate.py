@@ -23,6 +23,11 @@ def test_validate_submarkov_kernel_invalid_row_sum():
     assert not validate_submarkov_kernel(kernel)
 
 
+def test_validate_submarkov_kernel_negative_weight():
+    kernel = {"a": {"a": 0.4, "b": -0.1}}
+    assert not validate_submarkov_kernel(kernel)
+
+
 def test_antichain_path_hit_constraints():
     paths = [["1", "2", "4"], ["1", "3", "6"]]
     antichain = {"2", "3"}
