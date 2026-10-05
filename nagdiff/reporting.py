@@ -26,11 +26,16 @@ def write_extraction_comparison_csv(out_csv: str | Path, raw_dir: str = "data/ra
             "row",
             "column",
         ])
+        def sanitize(val: object) -> str | object:
+            if isinstance(val, str) and val and val[0] in ('=', '+', '-', '@'):
+                return f"'{val}"
+            return val
+
         for record in table["records"]:
             s = seeded[record["state"]]
             delta = float(record["barrier_pj"]) - float(s["barrier_pj"])
             replacement = record["provenance_status"] == "extracted_from_raw_moesm"
-            writer.writerow([
+            row_data = [
                 record["state"],
                 s["barrier_pj"],
                 record["barrier_pj"],
@@ -41,5 +46,6 @@ def write_extraction_comparison_csv(out_csv: str | Path, raw_dir: str = "data/ra
                 record.get("sheet_name"),
                 record.get("row"),
                 record.get("column"),
-            ])
+            ]
+            writer.writerow([sanitize(v) for v in row_data])
     return out_path
