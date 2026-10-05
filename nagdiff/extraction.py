@@ -132,11 +132,14 @@ def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, st
 
 def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
     results: list[ExtractedBarrier] = []
+    file_cache: dict[Path, list[list[str]]] = {}
     for state, spec in STRICT_CSV_MAPPING.items():
         file = raw_dir / spec["file"]
         if not file.exists():
             continue
-        rows = list(csv.reader(file.open("r", encoding="utf-8", newline="")))
+        if file not in file_cache:
+            file_cache[file] = list(csv.reader(file.open("r", encoding="utf-8", newline="")))
+        rows = file_cache[file]
         r = spec["row"] - 1
         c = spec["column"] - 1
         if r >= len(rows) or c >= len(rows[r]):
