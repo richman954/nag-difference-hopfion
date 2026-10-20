@@ -53,3 +53,13 @@ def test_hitting_probability_bounded():
 def test_generate_paths_negative_steps_raises():
     with pytest.raises(ValueError):
         generate_paths({"s": {"s": 1.0}}, "s", -1)
+
+
+def test_hitting_probabilities_negative_steps_raises():
+    with pytest.raises(ValueError, match="steps must be non-negative"):
+        hitting_probabilities({"s": {"s": 1.0}}, {"s": 1.0}, {"s"}, -1)
+
+
+def test_hitting_probabilities_invalid_kernel_raises():
+    with pytest.raises(ValueError, match="kernel is not sub-Markov"):
+        hitting_probabilities({"s": {"s": 1.1}}, {"s": 1.0}, {"s"}, 1)
