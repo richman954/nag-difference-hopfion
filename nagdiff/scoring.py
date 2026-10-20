@@ -4,23 +4,34 @@ import math
 from typing import Iterable
 
 
-def score_terms(
-    barrier: Iterable[float],
-    observable_mismatch: Iterable[float],
-    probability: Iterable[float],
-    topology_penalty: Iterable[float],
-    alpha: float = 1.0,
-    beta: float = 1.0,
-    gamma: float = 1.0,
-    delta: float = 1e-12,
-) -> list[float]:
+from dataclasses import dataclass
+
+@dataclass
+class ScoreData:
+    barrier: Iterable[float]
+    observable_mismatch: Iterable[float]
+    probability: Iterable[float]
+    topology_penalty: Iterable[float]
+
+
+@dataclass
+class ScoreWeights:
+    alpha: float = 1.0
+    beta: float = 1.0
+    gamma: float = 1.0
+    delta: float = 1e-12
+
+
+def score_terms(data: ScoreData, weights: ScoreWeights | None = None) -> list[float]:
     """Compute per-state scalar score before pairwise differencing."""
-    b = [float(x) for x in barrier]
-    om = [float(x) for x in observable_mismatch]
-    p = [float(x) for x in probability]
-    tp = [float(x) for x in topology_penalty]
+    if weights is None:
+        weights = ScoreWeights()
+    b = [float(x) for x in data.barrier]
+    om = [float(x) for x in data.observable_mismatch]
+    p = [float(x) for x in data.probability]
+    tp = [float(x) for x in data.topology_penalty]
     return [
-        b_i + alpha * om_i - beta * math.log(p_i + delta) + gamma * tp_i
+        b_i + weights.alpha * om_i - weights.beta * math.log(p_i + weights.delta) + weights.gamma * tp_i
         for b_i, om_i, p_i, tp_i in zip(b, om, p, tp)
     ]
 
