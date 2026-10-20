@@ -49,44 +49,35 @@ def _validate_provenance(record: dict[str, object]) -> None:
             raise ValueError(f"missing required provenance field: {field}")
 
 
-def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
-
-    payload = {
-        "raw_dir": str(raw_dir),
-        "mode": extraction_mode,
-        "extracted_count": len(extracted),
-        "checksums": collect_raw_file_checksums(raw_dir),
-        "records": [asdict(row) for row in extracted],
+def _process_extracted_records(extracted: list[object]) -> dict[str, object]:
+    extracted_by_state = {row.state: row for row in extracted}
+    combined = []
+    for seeded in SEEDED_BARRIER_DATA:
+        state = seeded["state"]
+        ex = extracted_by_state[state]
+        record = {
+            "state": state,
+            "barrier_pj": ex.barrier_pj,
+            "unit": ex.unit,
+            "source_file": ex.source_file,
+            "sheet_name": ex.sheet_name,
+            "row": ex.row,
+            "column": ex.column,
+            "extraction_method": ex.extraction_method,
+            "notes": ex.notes,
+            "provenance_status": "extracted_from_raw_moesm",
+        }
+        _validate_provenance(record)
+        combined.append(record)
+    return {
+        "mode": "extracted",
+        "records": combined,
+        "seeded_records": SEEDED_BARRIER_DATA,
+        "extracted_count": len(extracted_by_state),
     }
 
-    if is_extraction_validated(payload):
-        extracted_by_state = {row.state: row for row in extracted}
-        combined = []
-        for seeded in SEEDED_BARRIER_DATA:
-            state = seeded["state"]
-            ex = extracted_by_state[state]
-            record = {
-                "state": state,
-                "barrier_pj": ex.barrier_pj,
-                "unit": ex.unit,
-                "source_file": ex.source_file,
-                "sheet_name": ex.sheet_name,
-                "row": ex.row,
-                "column": ex.column,
-                "extraction_method": ex.extraction_method,
-                "notes": ex.notes,
-                "provenance_status": "extracted_from_raw_moesm",
-            }
-            _validate_provenance(record)
-            combined.append(record)
-        return {
-            "mode": "extracted",
-            "records": combined,
-            "seeded_records": SEEDED_BARRIER_DATA,
-            "extracted_count": len(extracted_by_state),
-        }
 
+def _handle_fallback_records() -> dict[str, object]:
     combined = []
     for seeded in SEEDED_BARRIER_DATA:
         combined.append(
@@ -100,10 +91,26 @@ def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto")
                 "notes": "Extraction not found; using provisional seeded fallback.",
             }
         )
-
     return {
         "mode": "fallback",
         "records": combined,
         "seeded_records": SEEDED_BARRIER_DATA,
         "extracted_count": 0,
     }
+
+
+def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
+    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
+
+    payload = {
+        "raw_dir": str(raw_dir),
+        "mode": extraction_mode,
+        "extracted_count": len(extracted),
+        "checksums": collect_raw_file_checksums(raw_dir),
+        "records": [asdict(row) for row in extracted],
+    }
+
+    if is_extraction_validated(payload):
+        return _process_extracted_records(extracted)
+
+    return _handle_fallback_records()
