@@ -61,36 +61,22 @@ See `data/processed/EXTRACTION_STATUS.md` for explicit extraction status.
 
 ## Authoritative barrier source data
 
-The cited 2026 Nature Physics article publishes the relevant minimum-energy-path
-simulation datasets as **Source Data Fig. 5** and **Source Data Extended Data
-Fig. 9** XLSX files. Those publisher-provided workbooks are the authoritative
-inputs for validating the three barrier paths used by this benchmark.
+Both publisher workbooks are included with their original filenames and SHA-256 receipts. The Figure 5 and Extended Data Figure 9 download links serve identical bytes. The extractor reproduces the three directed, sampled barriers. The workbook and plot label energy in pJ, while the spreadsheet formula would give fJ for an SI density input. Physical pJ validation remains open. The escape-to-collapse ratio is **2.56136** under either common scale. [Extraction status, cells and results](data/processed/EXTRACTION_STATUS.md) · [Publication](https://doi.org/10.1038/s41567-026-03236-0)
 
-The current extraction module still contains legacy `MOESM13` / `MOESM16`
-routing assumptions. Those names are not established as the publisher's source
-data identifiers and should be treated as scaffold history, not provenance.
-Do not rename unrelated files to satisfy that convention.
-
-Until the actual source-data workbooks are downloaded, checksummed, mapped, and
-validated, the full seeded table remains active with `seeded_fallback`
-provenance. The seeded table is retained permanently for side-by-side audit
-comparison.
-
-See `docs/raw_extraction_protocol.md` and `CODEX_TASKS.md` for the current
-authoritative-data checkpoint.
+The scoring template gives the same ranking with every barrier assignment, including when all barriers are zero. The benchmark includes controls for this result, for sampling a discrete saddle, and for evaluating future predictions of collapse versus escape. [Benchmark results and replay](docs/benchmark_validation.md)
 
 ## Quick start
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pytest
+python -m pip install -r requirements.txt
+python -m pytest
+python -m nagdiff.extraction
+python -m nagdiff.benchmark_controls > controls.json
 ```
 
-
-For reproducible extraction steps, see `docs/raw_extraction_protocol.md`.
-
+[Workbook extraction protocol](docs/raw_extraction_protocol.md)
 
 ## Second track: chain certificates
 

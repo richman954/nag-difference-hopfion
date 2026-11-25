@@ -1,13 +1,5 @@
-# Raw MOESM data
+# Raw barrier data
 
-Place the supplementary tables in `MOESM13/` and `MOESM16/` below this
-directory. CSV and XLSX tables are supported. Files named `MOESM13*.csv`,
-`MOESM16*.csv`, `MOESM13*.xlsx`, or `MOESM16*.xlsx` may alternatively be
-placed directly in this directory.
+The original Figure 5 and Extended Data Figure 9 XLSX attachments from Chen et al. are in [nature_source_data](nature_source_data/). The [receipt](nature_source_data/source_receipt.json) records the publisher labels, URLs, original filenames, retrieval times, lengths and SHA-256 digests. Each link returned the same workbook bytes.
 
-The repository ZIP uploads at its root are snapshots of the repository, not
-MOESM supplementary-data archives: neither contains MOESM13 or MOESM16. They
-must not be treated as scientific sources or silently relabeled as raw data.
-
-Until genuine raw tables are present and all three targets extract and validate,
-the seeded barriers remain **raw MOESM verification pending**.
+From the repository root, `python -m nagdiff.extraction` audits both attachments. An explicit `--raw` accepts the parent directory or the directory containing the pair. Competing or split layouts trigger fallback. Repository snapshot ZIPs and filename-matched CSVs cannot supply publisher provenance. [Protocol](../../docs/raw_extraction_protocol.md)

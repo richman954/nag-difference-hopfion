@@ -17,29 +17,14 @@ This file tracks forward progress with explicit checkpoints and test gates.
 - Compact pipeline visual exists in `docs/progress_visuals.md`.
 - Comparison/reporting utilities and recurring test gates are present.
 
-## Checkpoint 4 — Legacy MOESM mapping attempt (superseded)
-- Earlier work assumed barrier inputs would arrive as `MOESM13` / `MOESM16`.
-- That naming assumption is not established by the cited Nature Physics article.
-- Do not promote data merely because a file has been renamed to match the legacy convention.
+## Checkpoint 4 — Filename-based ingestion (superseded)
 
-## Checkpoint 5 — Authoritative Nature source-data ingestion (current)
-- Acquire the publisher's **Source Data Fig. 5** and **Source Data Extended Data Fig. 9** XLSX files for DOI `10.1038/s41567-026-03236-0`.
-- Preserve original filenames and SHA-256 checksums.
-- Inspect workbook structure before writing deterministic sheet/cell mappings.
-- Extract all three target barrier paths and verify units/reaction-coordinate interpretation.
-- Require a complete provenance record and passing tests before replacing seeded placeholders.
+The authoritative figures resolve to filenames that contain MOESM13 and MOESM16. Publisher figure labels, download URLs, original byte digests and reviewed worksheet ranges establish the mapping. Filename matches alone cannot authorize extraction.
 
-### Checkpoint 5 gate
-All must pass:
-1. Original source-data files identified from the article.
-2. SHA-256 checksums recorded.
-3. Deterministic mapping documented.
-4. Three target barriers extracted from the authoritative workbooks.
-5. Regression tests and full `pytest` pass.
-6. Extracted values reconciled against Fig. 5 / Extended Data Fig. 9.
-7. No fallback value is mislabeled as validated.
+## Checkpoint 5 — Publisher data ingested, physical energy scale open
 
-## Checkpoint 6 — Scientific analysis + formalization (next)
-- Run parameter/sensitivity analysis with validated barriers.
-- Extend chain-certificate results beyond toy examples.
-- Replace Lean starter `sorry` statements with proved lemmas against stable definitions.
+Both original workbooks are present, with separate source receipts and identical content. The extractor reproduces all three directed barriers, their minimum and saddle addresses and their plot ordering. The regression suite exercises failed-source, invalid-record and all-or-nothing fallback behavior. The remaining requirement for physical promotion is evidence of the simulation density unit and any preprocessing before spreadsheet import. [Status and release criteria](data/processed/EXTRACTION_STATUS.md)
+
+## Checkpoint 6 — Discrimination checks and prospective evaluation
+
+The scoring and grid-sampling controls replay on the publisher data. A two-stage evaluator freezes model predictions before receiving a cohort's route outcomes. An eligible external cohort and its independent enrollment record are still needed to measure predictive performance. Chain-certificate extensions and replacement of Lean starter `sorry` statements remain open. [Methods and results](docs/benchmark_validation.md)

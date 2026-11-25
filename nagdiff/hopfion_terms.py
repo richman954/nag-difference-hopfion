@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
-from nagdiff.extraction import collect_raw_file_checksums, extract_barriers_from_raw, is_extraction_validated
+from pathlib import Path
+
 
 REQUIRED_PROVENANCE_FIELDS = [
     "source_file",
@@ -22,7 +22,7 @@ SEEDED_BARRIER_DATA = [
         "unit": "pJ",
         "provenance_note": "provisional placeholder from prior notes",
         "provenance_status": "raw_moesm_verification_pending",
-        "source_target": "MOESM13/MOESM16",
+        "source_target": "Source Data Fig. 5",
     },
     {
         "state": "hopfion_collapse",
@@ -30,7 +30,7 @@ SEEDED_BARRIER_DATA = [
         "unit": "pJ",
         "provenance_note": "provisional placeholder from prior notes",
         "provenance_status": "raw_moesm_verification_pending",
-        "source_target": "MOESM13/MOESM16",
+        "source_target": "Source Data Fig. 5",
     },
     {
         "state": "hopfion_escape",
@@ -38,72 +38,23 @@ SEEDED_BARRIER_DATA = [
         "unit": "pJ",
         "provenance_note": "provisional placeholder from prior notes",
         "provenance_status": "raw_moesm_verification_pending",
-        "source_target": "MOESM13/MOESM16",
+        "source_target": "Source Data Extended Data Fig. 9",
     },
 ]
 
 
-def _validate_provenance(record: dict[str, object]) -> None:
-    for field in REQUIRED_PROVENANCE_FIELDS:
-        if field not in record or record[field] in (None, ""):
-            raise ValueError(f"missing required provenance field: {field}")
+def load_barrier_table(raw_dir: str | Path = "data/raw", extraction_mode: str = "auto") -> dict:
+    from nagdiff.extraction import VALIDATED_STATUS, extraction_payload
 
-
-def load_barrier_table(raw_dir: str = "data/raw", extraction_mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=extraction_mode)
-
-    payload = {
-        "raw_dir": str(raw_dir),
-        "mode": extraction_mode,
-        "extracted_count": len(extracted),
-        "checksums": collect_raw_file_checksums(raw_dir),
-        "records": [asdict(row) for row in extracted],
-    }
-
-    if is_extraction_validated(payload):
-        extracted_by_state = {row.state: row for row in extracted}
-        combined = []
-        for seeded in SEEDED_BARRIER_DATA:
-            state = seeded["state"]
-            ex = extracted_by_state[state]
-            record = {
-                "state": state,
-                "barrier_pj": ex.barrier_pj,
-                "unit": ex.unit,
-                "source_file": ex.source_file,
-                "sheet_name": ex.sheet_name,
-                "row": ex.row,
-                "column": ex.column,
-                "extraction_method": ex.extraction_method,
-                "notes": ex.notes,
-                "provenance_status": "extracted_from_raw_moesm",
-            }
-            _validate_provenance(record)
-            combined.append(record)
-        return {
-            "mode": "extracted",
-            "records": combined,
-            "seeded_records": SEEDED_BARRIER_DATA,
-            "extracted_count": len(extracted_by_state),
-        }
-
-    combined = []
-    for seeded in SEEDED_BARRIER_DATA:
-        combined.append(
-            {
-                **seeded,
-                "source_file": None,
-                "sheet_name": None,
-                "row": None,
-                "column": None,
-                "extraction_method": "seeded_fallback",
-                "notes": "Extraction not found; using provisional seeded fallback.",
-            }
-        )
-
-    return {
-        "mode": "fallback",
-        "records": combined,
-        "seeded_records": SEEDED_BARRIER_DATA,
-        "extracted_count": 0,
-    }
+    result = extraction_payload(raw_dir, extraction_mode)
+    seeds = [dict(row) for row in SEEDED_BARRIER_DATA]
+    if result["status"] == VALIDATED_STATUS and result["extracted_count"] == len(seeds):
+        rows = [{**r, "provenance_status": result["status"]} for r in result["records"]]
+        return {"mode": "extracted", "records": rows, "seeded_records": seeds,
+                "extracted_count": len(rows), "checksums": result["checksums"]}
+    rows = [{**s, "source_file": None, "sheet_name": None, "row": None,
+             "column": None, "extraction_method": "seeded_fallback",
+             "notes": "Provisional placeholder. " + result["reason"]} for s in seeds]
+    return {"mode": "fallback", "status": result["status"], "reason": result["reason"],
+            "records": rows, "seeded_records": seeds, "extracted_count": 0,
+            "checksums": result["checksums"]}

@@ -36,7 +36,7 @@ def test_load_barrier_table_fallback_mode(tmp_path):
     assert len(out["seeded_records"]) == 3
 
 
-def test_load_barrier_table_extracted_mode(tmp_path):
+def test_scoring_keeps_provisional_inputs_for_unitless_csv(tmp_path):
     f13 = tmp_path / "MOESM13.csv"
     f16 = tmp_path / "MOESM16.csv"
     f13.write_text(
@@ -52,7 +52,7 @@ def test_load_barrier_table_extracted_mode(tmp_path):
     )
 
     out = load_barrier_table(raw_dir=tmp_path)
-    assert out["mode"] == "extracted"
-    assert out["extracted_count"] == 3
-    recs = {r["state"]: r for r in out["records"]}
-    assert recs["skyrmion_antiskyrmion_merge_to_hopfion"]["provenance_status"] == "extracted_from_raw_moesm"
+    assert out["mode"] == "fallback"
+    assert out["extracted_count"] == 0
+    assert {r["state"]: r["barrier_pj"] for r in out["records"]} == _seed_barriers()
+    assert {r["extraction_method"] for r in out["records"]} == {"seeded_fallback"}
