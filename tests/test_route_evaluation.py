@@ -9,7 +9,7 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 
-from nagdiff.route_evaluation import evaluate, freeze, main
+from nagdiff.route_evaluation import brier_threshold, design, evaluate, freeze, main
 
 
 def plan():
@@ -47,6 +47,92 @@ def scored(p, y):
 
 
 class TestRoutes(unittest.TestCase):
+    def test_original_v1_snapshot_replays_and_supports_outcome_blind_design(self):
+        raw = freeze(encode(plan()))
+        # Digest of the same fixture as frozen by the original v1 implementation.
+        digest = "5cd2659dbfc6b66c8b2a14b261434f2c9f8a42128973529a9c5a69d93e390476"
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), digest)
+        details = design(raw, digest)["conditions"]["synthetic-A"]
+        self.assertEqual(details["enrolled"], 4)
+        self.assertEqual(details["brier_threshold"]["full_has_lower_loss_when"], "above_threshold")
+        result = evaluate(raw, digest, encode(outcomes()))
+        for key, value in details.items():
+            self.assertEqual(value, result["by_condition"]["synthetic-A"][key])
+        self.assertEqual(result["equal_condition"]["mean_brier"], result["mean_brier"])
+        with self.assertRaisesRegex(ValueError, "SHA-256"):
+            design(raw + b" ", digest)
+
+    def test_threshold_matches_empirical_binary_brier_in_either_direction(self):
+        for full, barrier, direction in ((0.75, 0.25, "above_threshold"), (0.25, 0.75, "below_threshold")):
+            diagnostic = brier_threshold(full, barrier)
+            self.assertEqual(diagnostic["escape_fraction_at_tie_exact"], "1/2")
+            self.assertEqual(diagnostic["full_has_lower_loss_when"], direction)
+            self.assertEqual(diagnostic["tie"], "at_threshold")
+            for escape in range(5):
+                q = escape / 4
+                losses = [sum((p - y) ** 2 for y in [1] * escape + [0] * (4 - escape)) / 4
+                          for p in (full, barrier)]
+                self.assertEqual(losses[0] == losses[1], q == 0.5)
+                self.assertEqual(losses[0] < losses[1], q > 0.5 if full > barrier else q < 0.5)
+        equal = brier_threshold(0.25, 0.25)
+        self.assertEqual(equal["tie"], "every_escape_fraction")
+        self.assertEqual(equal["full_has_lower_loss_when"], "never")
+        self.assertIsNone(equal["escape_fraction_at_tie"])
+        self.assertEqual(brier_threshold(1, math.nextafter(1.0, 0.0))["escape_fraction_at_tie_exact"],
+                         "18014398509481983/18014398509481984")
+        for bad in (True, None, float("nan"), -0.1, 1.1):
+            with self.assertRaises(ValueError):
+                brier_threshold(bad, 0.5)
+
+    def test_differential_resolution_reverses_equal_condition_comparison(self):
+        p = plan()
+        a = p["conditions"][0]
+        a["run_ids"] = [f"run-{i}" for i in range(9)]
+        a["routes"]["escape"]["barrier"] = 0
+        a["routes"]["collapse"]["observable_mismatch"] = math.log(1.5)
+        b = copy.deepcopy(a)
+        b["condition_id"] = "synthetic-B"
+        b["routes"]["collapse"]["observable_mismatch"] = math.log(9)
+        p["conditions"].append(b)
+        y = outcomes()
+        y["records"] = [
+            {"condition_id": c["condition_id"], "window": c["window"], "run_id": run, "outcome": label}
+            for c, labels in [(a, ["escape"] * 9), (b, ["collapse"] + ["censored"] * 8)]
+            for run, label in zip(c["run_ids"], labels)
+        ]
+        out = scored(p, y)
+        a_result, b_result = (out["by_condition"][c["condition_id"]] for c in (a, b))
+        self.assertEqual((a_result["resolved"], b_result["resolved"]), (9, 1))
+        self.assertEqual(b_result["outcome_counts"]["censored"], 8)
+        self.assertEqual((a_result["observed_escape_fraction"], b_result["observed_escape_fraction"]), (1, 0))
+        self.assertAlmostEqual(a_result["mean_full_minus_barrier_only"], -0.09)
+        self.assertAlmostEqual(b_result["mean_full_minus_barrier_only"], 0.56)
+        self.assertAlmostEqual(out["mean_full_minus_barrier_only"], -0.025)
+        self.assertAlmostEqual(out["equal_condition"]["mean_full_minus_barrier_only"], 0.235)
+        self.assertAlmostEqual(out["equal_condition"]["mean_brier"]["full"], 0.485)
+        self.assertAlmostEqual(out["equal_condition"]["mean_brier"]["barrier_only"], 0.25)
+        y["records"][9]["outcome"] = "indeterminate"
+        missing = scored(p, y)
+        self.assertAlmostEqual(missing["mean_full_minus_barrier_only"], -0.09)
+        self.assertEqual(missing["equal_condition"]["conditions_without_resolved_events"], ["synthetic-B"])
+        self.assertEqual(missing["equal_condition"]["mean_brier"], {"barrier_only": None, "full": None})
+        self.assertIsNone(missing["equal_condition"]["mean_full_minus_barrier_only"])
+        self.assertIsNone(missing["by_condition"]["synthetic-B"]["observed_escape_fraction"])
+
+    def test_pin_does_not_bypass_snapshot_schema_checks(self):
+        for key, value in (("schema_version", True), ("schema_version", 1.0), ("plan_sha256", "bad"),
+                           ("protocol_id", []), ("enrollment_source", None), ("feature_source", ""),
+                           ("model", {"energy_reference": 0}), ("conditions", {})):
+            with self.subTest(key=key, value=value):
+                snap = json.loads(freeze(encode(plan())))
+                snap[key] = value
+                raw = encode(snap)
+                digest = hashlib.sha256(raw).hexdigest()
+                with self.assertRaises(ValueError):
+                    design(raw, digest)
+                with self.assertRaises(ValueError):
+                    evaluate(raw, digest, encode(outcomes()))
+
     def test_known_binary_brier_and_coverage(self):
         out = scored(plan(), outcomes())
         barrier = 1 / (1 + math.exp(1))
@@ -189,6 +275,10 @@ class TestRoutes(unittest.TestCase):
             with redirect_stdout(StringIO()) as printed:
                 main(["freeze", str(p), str(snapshot)])
             digest = printed.getvalue().strip()
+            with redirect_stdout(StringIO()) as printed:
+                main(["design", str(snapshot), "--snapshot-sha256", digest])
+            view = json.loads(printed.getvalue())
+            self.assertEqual(view["conditions"]["synthetic-A"]["enrolled"], 4)
             with redirect_stdout(StringIO()) as printed:
                 main(["evaluate", str(snapshot), str(y), "--snapshot-sha256", digest])
             self.assertEqual(json.loads(printed.getvalue())["status"], "scored_resolved_events")

@@ -63,7 +63,7 @@ See `data/processed/EXTRACTION_STATUS.md` for explicit extraction status.
 
 Both publisher workbooks are included with their original filenames and SHA-256 receipts. The Figure 5 and Extended Data Figure 9 download links serve identical bytes. The extractor reproduces the three directed, sampled barriers. The workbook and plot label energy in pJ, while the spreadsheet formula would give fJ for an SI density input. Physical pJ validation remains open. The escape-to-collapse ratio is **2.56136** under either common scale. [Extraction status, cells and results](data/processed/EXTRACTION_STATUS.md) · [Publication](https://doi.org/10.1038/s41567-026-03236-0)
 
-The scoring template gives the same ranking with every barrier assignment, including when all barriers are zero. The benchmark includes controls for this result, for sampling a discrete saddle, and for evaluating future predictions of collapse versus escape. [Benchmark results and replay](docs/benchmark_validation.md)
+The scoring template gives the same ranking with every barrier assignment, including when all barriers are zero. For the two loss routes, the full template and barrier-only model tie at about 41.5% observed escape among resolved events under the example settings. The benchmark also quantifies thermal sensitivity to the open energy scale and reports model performance by condition when held-out outcomes are supplied. [Benchmark results and replay](docs/benchmark_validation.md)
 
 ## Quick start
 

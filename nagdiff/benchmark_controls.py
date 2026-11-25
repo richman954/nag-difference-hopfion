@@ -11,7 +11,8 @@ import math
 from pathlib import Path
 
 from .chen2026_audit import AuditError, audit_publisher_pair
-from .scoring import score_terms
+from .route_evaluation import brier_threshold
+from .scoring import score_terms, soft_selection_weights
 
 
 STATE = {
@@ -75,6 +76,11 @@ def _scoring_controls(paths, template):
         full = evaluate(barriers.values())
         gap = full["escape"] - full["collapse"]
         barrier_gap = barriers["escape"] - barriers["collapse"]
+        # These settings reproduce the template's numeric pJ coefficient.
+        # Merger starts in another basin and is excluded from the two-route forecast.
+        exits = ("collapse", "escape")
+        full_p = soft_selection_weights([full[path] for path in exits], 1.0)[1]
+        barrier_p = soft_selection_weights([barriers[path] for path in exits], 1.0)[1]
         trials = []
         for perm in permutations(STATE):
             assigned = dict(zip(STATE, perm))
@@ -91,6 +97,11 @@ def _scoring_controls(paths, template):
             "barriers": barriers, "correct_assignment_scores": full,
             "escape_minus_collapse_gap": gap,
             "barrier_percent_of_gap": 100 * barrier_gap / gap if gap else None,
+            "two_route_design": {
+                "energy_reference_pj": 1.0, "softmax_temperature": 1.0,
+                "escape_probability": {"full": full_p, "barrier_only": barrier_p},
+                "brier_threshold": brier_threshold(full_p, barrier_p),
+            },
             "permutations": trials,
             "permutations_with_zero_barrier_rank": sum(row["rank"] == zero_rank for row in trials),
             "permutations_with_barrier_only_rank": sum(row["rank"] == row["barrier_only_rank"] for row in trials),

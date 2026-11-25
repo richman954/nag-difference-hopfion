@@ -16,6 +16,8 @@ Historical solver code computes a binary32 image energy density and writes it un
 
 The ratios cancel the common scale. Collapse/merger is 1.27586, escape/merger is 3.26795 and **escape/collapse is 2.56136**. The last ratio directly compares the two routes out of a hopfion. These are discrete path-energy results. Relative event frequencies require observations or a separately specified rate model.
 
+A second dimensional check compares the energy densities at the *start and end* of each loss route, so a shared additive energy offset cancels. Reading the worksheet density as kJ/m³ would put each endpoint drop about 6.74 times above a conditional continuum bound. Reading it as J/m³ gives about 1,141 J/m³, within the bound. The argument requires a starting state stable against changes in all four components of the regularized model and compatible surface and discretization assumptions. The archived workbook does not establish those conditions. The result strengthens the SI-scale evidence and leaves the release decision open. [Derivation, assumptions and original cells](../../docs/endpoint_energy_bound.md)
+
 ## Promotion criteria
 
 A paper-specific simulation export with documented units and import steps, or an equivalent publisher or author clarification, must resolve the thousandfold discrepancy. Review the scale and provenance for all three paths together and replay the full test suite before enabling promotion. Until then, the artifact reports `physical_unit_unresolved`, and the active table retains the three provisional `raw_moesm_verification_pending` seeds.

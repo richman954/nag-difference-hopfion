@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from fractions import Fraction
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import re
 from tempfile import TemporaryDirectory
 
 from .barrier_workbooks import normalize_to_pj
@@ -77,6 +79,30 @@ def _encoded(obj):
     return (json.dumps(obj, allow_nan=False, indent=2, sort_keys=True) + "\n").encode()
 
 
+def _probability(value):
+    p = _number(value)
+    if not 0 <= p <= 1:
+        raise ValueError("probability outside [0,1]")
+    return p
+
+
+def brier_threshold(full_probability: float, barrier_probability: float) -> dict:
+    """Compare the forecasts at any escape fraction q among resolved runs.
+
+    The mean full-minus-baseline Brier loss is (f-b)(f+b-2q).
+    The exact fraction preserves ties at midpoints between adjacent floats.
+    """
+    full = _probability(full_probability)
+    barrier = _probability(barrier_probability)
+    if full == barrier:
+        return {"escape_fraction_at_tie": None, "escape_fraction_at_tie_exact": None,
+                "full_has_lower_loss_when": "never", "tie": "every_escape_fraction"}
+    midpoint = (Fraction(full) + Fraction(barrier)) / 2
+    return {"escape_fraction_at_tie": float(midpoint), "escape_fraction_at_tie_exact": str(midpoint),
+            "full_has_lower_loss_when": "above_threshold" if full > barrier else "below_threshold",
+            "tie": "at_threshold"}
+
+
 def _probabilities(routes, config):
     _keys(routes, "collapse escape")
     fields = ["barrier", "observable_mismatch", "prior_probability", "topology_penalty"]
@@ -100,21 +126,26 @@ def _probabilities(routes, config):
     return probs
 
 
-def freeze(plan_bytes: bytes) -> bytes:
-    """Return canonical snapshot bytes, including exact input SHA-256 and run roster."""
-    plan = _keys(_decode(plan_bytes),
-                 "protocol_id cohort_design enrollment_source feature_source model conditions")
-    if plan["cohort_design"] != "all_enrolled":
+def _validate_protocol(obj):
+    if obj["cohort_design"] != "all_enrolled":
         raise ValueError("the held-out cohort must include all enrolled runs")
     for f in ("protocol_id", "enrollment_source", "feature_source"):
-        _text(plan[f])
-    config = _keys(plan["model"], "energy_unit energy_reference alpha beta gamma delta temperature")
+        _text(obj[f])
+    config = _keys(obj["model"], "energy_unit energy_reference alpha beta gamma delta temperature")
     # The common unit cancels in the barrier/reference ratio after validating it.
     normalize_to_pj(1, config["energy_unit"])
     for f in ("energy_reference", "alpha", "beta", "gamma", "delta", "temperature"):
         _number(config[f])
     if min(config[f] for f in ("energy_reference", "delta", "temperature")) <= 0:
         raise ValueError("energy_reference, delta, and temperature must be positive")
+
+
+def freeze(plan_bytes: bytes) -> bytes:
+    """Return canonical snapshot bytes, including exact input SHA-256 and run roster."""
+    plan = _keys(_decode(plan_bytes),
+                 "protocol_id cohort_design enrollment_source feature_source model conditions")
+    _validate_protocol(plan)
+    config = plan["model"]
     predictions = {}
     for entry in _list(plan["conditions"]):
         _keys(entry, "condition_id window run_ids routes")
@@ -134,37 +165,64 @@ def freeze(plan_bytes: bytes) -> bytes:
     })
 
 
-def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) -> dict:
-    """Require the pre-recorded digest and exactly one outcome for every enrolled run."""
-    received = hashlib.sha256(snapshot_bytes).hexdigest()
-    if received != expected_sha256:
+def _read_snapshot(snapshot_bytes, expected_sha256):
+    if hashlib.sha256(snapshot_bytes).hexdigest() != expected_sha256:
         raise ValueError("snapshot differs from supplied SHA-256")
     snap = _keys(_decode(snapshot_bytes), "schema_version plan_sha256 protocol_id cohort_design "
                  "enrollment_source feature_source model conditions")
-    if snap["schema_version"] != 1 or snap["cohort_design"] != "all_enrolled":
-        raise ValueError("unsupported snapshot or selected cohort")
-    data = _keys(_decode(outcome_bytes), "protocol_id outcome_source records")
-    if data["protocol_id"] != snap["protocol_id"]:
-        raise ValueError("outcomes have a different protocol_id")
-    _text(data["outcome_source"])
+    if type(snap["schema_version"]) is not int or snap["schema_version"] != 1:
+        raise ValueError("unsupported snapshot schema version")
+    if not re.fullmatch(r"[0-9a-f]{64}", _text(snap["plan_sha256"])):
+        raise ValueError("invalid plan SHA-256 in snapshot")
+    _validate_protocol(snap)
     conditions = snap["conditions"]
     if not isinstance(conditions, dict) or not conditions:
         raise ValueError("expected a snapshot with enrolled conditions")
-    roster = set()
     for condition, entry in conditions.items():
         _text(condition)
         _keys(entry, "window run_ids escape_probability")
         _text(entry["window"])
         probs = _keys(entry["escape_probability"], "barrier_only full")
-        if not all(0 <= _number(v) <= 1 for v in probs.values()):
-            raise ValueError("snapshot probability outside [0,1]")
+        for p in probs.values():
+            _probability(p)
         runs = [_text(run) for run in _list(entry["run_ids"])]
         if len(set(runs)) != len(runs):
             raise ValueError("duplicate enrollment")
-        roster.update((condition, run) for run in runs)
+    return snap
 
+
+def _condition_design(entry):
+    probs = entry["escape_probability"]
+    return {"window": entry["window"], "enrolled": len(entry["run_ids"]),
+            "escape_probability": probs, "brier_threshold": brier_threshold(probs["full"], probs["barrier_only"])}
+
+
+def design(snapshot_bytes: bytes, expected_sha256: str) -> dict:
+    """Describe the conditions in which either frozen forecast would score better, before outcomes."""
+    snap = _read_snapshot(snapshot_bytes, expected_sha256)
+    return {"protocol_id": snap["protocol_id"], "snapshot_sha256": expected_sha256,
+            "plan_sha256": snap["plan_sha256"],
+            "conditions": {condition: _condition_design(entry) for condition, entry in snap["conditions"].items()}}
+
+
+def _mean_losses(paired):
+    n = len(paired)
+    return {"mean_brier": {m: math.fsum(p["brier"][m] for p in paired) / n if n else None for m in SCORES},
+            "mean_full_minus_barrier_only": math.fsum(p["full_minus_barrier_only"] for p in paired) / n if n else None}
+
+
+def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) -> dict:
+    """Require the pre-recorded digest and exactly one outcome for every enrolled run."""
+    snap = _read_snapshot(snapshot_bytes, expected_sha256)
+    data = _keys(_decode(outcome_bytes), "protocol_id outcome_source records")
+    if data["protocol_id"] != snap["protocol_id"]:
+        raise ValueError("outcomes have a different protocol_id")
+    _text(data["outcome_source"])
+    conditions = snap["conditions"]
+    roster = {(condition, run) for condition, entry in conditions.items() for run in entry["run_ids"]}
     seen = set()
-    counts = Counter({state: 0 for state in OUTCOMES})
+    counts_by_condition = {condition: Counter(dict.fromkeys(OUTCOMES, 0)) for condition in conditions}
+    paired_by_condition = {condition: [] for condition in conditions}
     paired = []
     for record in _list(data["records"]):
         _keys(record, "condition_id run_id window outcome")
@@ -178,24 +236,43 @@ def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) 
         outcome = record["outcome"]
         if outcome not in OUTCOMES:
             raise ValueError(f"unknown outcome: {outcome!r}")
-        counts[outcome] += 1
+        counts_by_condition[key[0]][outcome] += 1
         if outcome in ROUTES:
             y = int(outcome == "escape")
             losses = {m: (p - y) ** 2 for m, p in entry["escape_probability"].items()}
             paired.append({"condition_id": key[0], "run_id": key[1], "outcome": outcome,
                            "brier": losses, "full_minus_barrier_only": losses["full"] - losses["barrier_only"]})
+            paired_by_condition[key[0]].append(paired[-1])
     if seen != roster:
         raise ValueError(f"missing outcomes for {len(roster - seen)} enrolled run(s)")
     n = len(paired)
-    means = {m: math.fsum(p["brier"][m] for p in paired) / n if n else None for m in SCORES}
+    counts = {outcome: sum(c[outcome] for c in counts_by_condition.values()) for outcome in OUTCOMES}
+    summaries = {}
+    for condition, entry in conditions.items():
+        rows = paired_by_condition[condition]
+        totals = counts_by_condition[condition]
+        summaries[condition] = {
+            **_condition_design(entry), "outcome_counts": dict(totals),
+            "resolved": len(rows), "resolved_fraction": len(rows) / len(entry["run_ids"]),
+            "observed_escape_fraction": totals["escape"] / len(rows) if rows else None,
+            **_mean_losses(rows),
+        }
+    k = len(conditions)
+    missing = sorted(c for c in conditions if not paired_by_condition[c])
+    equal = {
+        "conditions": k, "conditions_without_resolved_events": missing,
+        "mean_brier": {m: None if missing else math.fsum(s["mean_brier"][m] for s in summaries.values()) / k
+                       for m in SCORES},
+        "mean_full_minus_barrier_only": None if missing else
+            math.fsum(s["mean_full_minus_barrier_only"] for s in summaries.values()) / k,
+    }
     return {
         "status": "scored_resolved_events" if n else "no_resolved_events",
         "estimand": "Mean paired binary Brier loss conditional on observing a resolved route in the planned window.",
-        "snapshot_sha256": received, "plan_sha256": snap["plan_sha256"],
+        "snapshot_sha256": expected_sha256, "plan_sha256": snap["plan_sha256"],
         "outcomes_sha256": hashlib.sha256(outcome_bytes).hexdigest(), "outcome_source": data["outcome_source"],
         "enrolled": len(roster), "outcome_counts": dict(counts), "resolved": n, "resolved_fraction": n / len(roster),
-        "mean_brier": means, "mean_full_minus_barrier_only": (
-            math.fsum(p["full_minus_barrier_only"] for p in paired) / n if n else None),
+        **_mean_losses(paired), "by_condition": summaries, "equal_condition": equal,
         "paired_runs": paired,
     }
 
@@ -206,6 +283,9 @@ def main(argv=None):
     lock = commands.add_parser("freeze", help="create predictions before unblinding")
     lock.add_argument("plan", type=Path)
     lock.add_argument("snapshot", type=Path)
+    inspect = commands.add_parser("design", help="show outcome-blind Brier thresholds by condition")
+    inspect.add_argument("snapshot", type=Path)
+    inspect.add_argument("--snapshot-sha256", required=True)
     test = commands.add_parser("evaluate", help="score the complete outcome roster")
     test.add_argument("snapshot", type=Path)
     test.add_argument("outcomes", type=Path)
@@ -220,6 +300,8 @@ def main(argv=None):
                 candidate.write_bytes(raw)
                 os.link(candidate, args.snapshot)
             print(hashlib.sha256(raw).hexdigest())
+        elif args.command == "design":
+            print(_encoded(design(args.snapshot.read_bytes(), args.snapshot_sha256)).decode(), end="")
         else:
             result = evaluate(args.snapshot.read_bytes(), args.snapshot_sha256, args.outcomes.read_bytes())
             print(_encoded(result).decode(), end="")

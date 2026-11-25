@@ -66,6 +66,23 @@ def test_matched_read_budgets_under_all_independent_phase_pairs(result):
         assert combined["escape_above_collapse"] == ordered
 
 
+def test_publisher_template_two_route_brier_crossover(result):
+    scenarios = result["score_controls"]["conditional_scenarios"]
+    for convention, expected in (
+        ("conditional_pJ_if_header_scale", (0.32931792, 0.49988850, 0.41460321)),
+        ("conditional_pJ_if_SI_density_and_volume", (0.32941633, 0.49999989, 0.41470811)),
+    ):
+        design = scenarios[convention]["two_route_design"]
+        assert design["energy_reference_pj"] == design["softmax_temperature"] == 1
+        p = design["escape_probability"]
+        threshold = design["brier_threshold"]
+        assert (p["full"], p["barrier_only"], threshold["escape_fraction_at_tie"]) == pytest.approx(expected)
+        assert threshold["full_has_lower_loss_when"] == "below_threshold"
+        for escapes, winner in ((4, "full"), (5, "barrier_only")):
+            losses = {name: escapes * (1 - value)**2 + (10 - escapes) * value**2 for name, value in p.items()}
+            assert min(losses, key=losses.get) == winner
+
+
 def test_visible_peak_can_hide_a_higher_peak_in_another_interval():
     curve = [0, 1, 2, 3, 4, 3, 2, 1, 1, 0, 10, 0, -1]
     observed = {i: curve[i] for i in (0, 4, 8, 12)}
@@ -90,3 +107,4 @@ def test_template_with_zero_coefficients_exposes_permutations_and_ties(tmp_path)
         ranks = {tuple(group[0] for group in trial["rank"]) for trial in scenario["permutations"]}
         assert ranks == set(permutations(STATE))
         assert scenario["permutations_with_zero_barrier_rank"] == 0
+        assert scenario["two_route_design"]["brier_threshold"]["tie"] == "every_escape_fraction"
