@@ -1,36 +1,27 @@
+"""Atomic barrier extraction and replay for the Chen et al. benchmark."""
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
-import math
-import re
-import xml.etree.ElementTree as ET
-import zipfile
-from dataclasses import asdict, dataclass
+import os
+import tempfile
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Iterable
 
-TARGETS = {
-    "skyrmion_antiskyrmion_merge_to_hopfion": ["skyrmion", "antiskyrmion", "merge", "hopfion"],
-    "hopfion_collapse": ["hopfion", "collapse"],
-    "hopfion_escape": ["hopfion", "escape"],
-}
+from .barrier_workbooks import (
+    FILES, WorkbookError, extract_workbooks, load_manifest, normalize_to_pj, resolve_workbook_directory,
+)
 
-TARGET_SOURCE = {
-    "skyrmion_antiskyrmion_merge_to_hopfion": "MOESM13",
-    "hopfion_collapse": "MOESM13",
-    "hopfion_escape": "MOESM16",
-}
 
-STRICT_CSV_MAPPING = {
-    "skyrmion_antiskyrmion_merge_to_hopfion": {"file": "MOESM13.csv", "row": 2, "column": 2},
-    "hopfion_collapse": {"file": "MOESM13.csv", "row": 3, "column": 2},
-    "hopfion_escape": {"file": "MOESM16.csv", "row": 2, "column": 2},
-}
-
-NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+# A future reviewed release can pin a literal mapping here after its dimensions
+# and MEP assignments have been reconciled with the publisher. This trust data
+# belongs to the package. A manifest in the input directory cannot set it.
+_APPROVED_MANIFEST_JSON: str | None = None
+VALIDATED_STATUS = "validated_publisher_workbooks"
+TARGETS = (
+    "skyrmion_antiskyrmion_merge_to_hopfion", "hopfion_collapse", "hopfion_escape",
+)
 
 
 @dataclass
@@ -44,225 +35,141 @@ class ExtractedBarrier:
     unit: str
     extraction_method: str
     notes: str
+    doi: str
+    figure: str
+    source_url: str
+    retrieved_on: str
+    sha256: str
+    source_unit: str
+    energy_header: dict
+    coordinate_header: dict
+    branch_rows: list
+    minimum: dict
+    saddle: dict
+    barrier_pj_decimal: str
 
 
-def _iter_moesm_files(raw_dir: Path) -> Iterable[Path]:
-    patterns = [
-        "MOESM13*.csv", "MOESM16*.csv", "MOESM13/*.csv", "MOESM16/*.csv",
-        "MOESM13*.xlsx", "MOESM16*.xlsx", "MOESM13/*.xlsx", "MOESM16/*.xlsx",
-    ]
-    seen: set[Path] = set()
-    for pattern in patterns:
-        for p in raw_dir.glob(pattern):
-            if p.is_file() and p not in seen:
-                seen.add(p)
-                yield p
+def _normalize_to_pj(val, unit):
+    """Conversion requires a declared unit, including for zero or negative energies."""
+    return normalize_to_pj(val, unit)
 
 
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        while True:
-            chunk = fh.read(65536)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
+def extraction_payload(raw_dir: str | Path, mode: str = "auto") -> dict:
+    """Build a complete comparison snapshot. Never release a partial table."""
+    if mode not in ("auto", "strict", "heuristic"):
+        raise ValueError(f"unknown extraction mode: {mode!r}")
+    payload = {
+        "raw_dir": str(raw_dir), "mode": mode, "status": "pending",
+        "extracted_count": 0, "checksums": {}, "records": [],
+    }
+    if mode == "heuristic":
+        payload["reason"] = "A keyword match does not establish a physical barrier."
+        return payload
+    if _APPROVED_MANIFEST_JSON is None:
+        from .chen2026_audit import AuditError, audit_publisher_pair
 
+        try:
+            audit = audit_publisher_pair(Path(raw_dir))
+        except AuditError as exc:
+            payload["reason"] = str(exc)
+            return payload
+        payload.update(status=audit["status"], source_audit=audit,
+                       checksums={s["filename"]: s["sha256"] for s in audit["sources"]},
+                       reason="Energy headers and figure axes say pJ. The density unit is missing "
+                              "and the volume-based worksheet formula divides by 1e-15.")
+        return payload
 
-def _normalize_to_pj(val: float) -> float:
-    if val > 1e-2:
-        return val * 1e-12
-    return val
-
-
-def _xlsx_rows(path: Path) -> Iterable[tuple[str, list[tuple[int, str]]]]:
-    """Yield worksheet rows without requiring a heavyweight spreadsheet dependency."""
-    ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-    rel_ns = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
-    pkg_ns = "{http://schemas.openxmlformats.org/package/2006/relationships}"
-    with zipfile.ZipFile(path) as book:
-        shared: list[str] = []
-        if "xl/sharedStrings.xml" in book.namelist():
-            root = ET.fromstring(book.read("xl/sharedStrings.xml"))
-            shared = ["".join(node.itertext()) for node in root.findall(f"{ns}si")]
-
-        workbook = ET.fromstring(book.read("xl/workbook.xml"))
-        relationships = ET.fromstring(book.read("xl/_rels/workbook.xml.rels"))
-        targets = {rel.attrib["Id"]: rel.attrib["Target"] for rel in relationships.findall(f"{pkg_ns}Relationship")}
-        for sheet in workbook.find(f"{ns}sheets") or []:
-            sheet_name = sheet.attrib["name"]
-            target = targets[sheet.attrib[f"{rel_ns}id"]].lstrip("/")
-            member = target if target.startswith("xl/") else f"xl/{target}"
-            root = ET.fromstring(book.read(member))
-            for row in root.findall(f".//{ns}row"):
-                cells: list[tuple[int, str]] = []
-                for cell in row.findall(f"{ns}c"):
-                    letters = re.match(r"[A-Z]+", cell.attrib.get("r", "A"))
-                    column = 0
-                    for char in letters.group(0) if letters else "A":
-                        column = column * 26 + ord(char) - 64
-                    value = cell.find(f"{ns}v")
-                    inline = cell.find(f"{ns}is")
-                    text = "" if value is None else (value.text or "")
-                    if cell.attrib.get("t") == "s" and text:
-                        text = shared[int(text)]
-                    elif inline is not None:
-                        text = "".join(inline.itertext())
-                    cells.append((column, text))
-                yield sheet_name, cells
-
-
-def _tabular_rows(path: Path) -> Iterable[tuple[str, int, list[tuple[int, str]]]]:
-    if path.suffix.lower() == ".xlsx":
-        counters: dict[str, int] = {}
-        for sheet, cells in _xlsx_rows(path):
-            counters[sheet] = counters.get(sheet, 0) + 1
-            yield sheet, counters[sheet], cells
-        return
-    with path.open("r", encoding="utf-8-sig", newline="") as fh:
-        for row_number, row in enumerate(csv.reader(fh), start=1):
-            yield path.stem, row_number, list(enumerate(row, start=1))
+    manifest = json.loads(_APPROVED_MANIFEST_JSON)
+    try:
+        records = extract_workbooks(Path(raw_dir), manifest)
+    except WorkbookError as exc:
+        payload["reason"] = str(exc)
+        return payload
+    payload.update(status=VALIDATED_STATUS, extracted_count=len(records), records=records,
+                   checksums={r["source_file"]: r["sha256"] for r in records})
+    return payload
 
 
 def collect_raw_file_checksums(raw_dir: str | Path = "data/raw") -> dict[str, str]:
-    raw_path = Path(raw_dir)
-    return {str(file): _sha256(file) for file in _iter_moesm_files(raw_path)}
-
-
-def _extract_strict_csv(raw_dir: Path) -> list[ExtractedBarrier]:
-    results: list[ExtractedBarrier] = []
-    for state, spec in STRICT_CSV_MAPPING.items():
-        file = raw_dir / spec["file"]
-        if not file.exists():
-            continue
-        rows = list(csv.reader(file.open("r", encoding="utf-8", newline="")))
-        r = spec["row"] - 1
-        c = spec["column"] - 1
-        if r >= len(rows) or c >= len(rows[r]):
-            continue
-        match = NUM_RE.search(rows[r][c])
-        if not match:
-            continue
-        val = _normalize_to_pj(float(match.group(0)))
-        results.append(
-            ExtractedBarrier(
-                state=state,
-                barrier_pj=val,
-                source_file=str(file),
-                sheet_name=file.stem,
-                row=spec["row"],
-                column=spec["column"],
-                unit="pJ",
-                extraction_method="strict_csv_mapping",
-                notes="Extracted via deterministic file/row/column mapping.",
-            )
-        )
-    return results
-
-
-def _extract_keyword_tables(raw_dir: Path) -> list[ExtractedBarrier]:
-    results: dict[str, ExtractedBarrier] = {}
-    for file in _iter_moesm_files(raw_dir):
-        source_group = "MOESM13" if "moesm13" in str(file).lower() else "MOESM16"
-        for sheet_name, r_idx, row in _tabular_rows(file):
-            for position, (c_idx, cell) in enumerate(row):
-                cell_text = (cell or "").strip().lower()
-                if not cell_text:
-                    continue
-                for state, keywords in TARGETS.items():
-                    if state in results or TARGET_SOURCE[state] != source_group:
-                        continue
-                    if all(keyword in cell_text for keyword in keywords):
-                        for scan_c, candidate in row[position : position + 6]:
-                            match = NUM_RE.search(candidate)
-                            if not match:
-                                continue
-                            val = _normalize_to_pj(float(match.group(0)))
-                            results[state] = ExtractedBarrier(
-                                state=state,
-                                barrier_pj=val,
-                                source_file=str(file),
-                                sheet_name=sheet_name,
-                                row=r_idx,
-                                column=scan_c,
-                                unit="pJ",
-                                extraction_method=f"keyword_row_scan_{file.suffix.lower().lstrip('.')}",
-                                notes=(
-                                    f"Extracted from raw {source_group} table by target keywords "
-                                    "and nearest numeric cell; numeric value normalized to pJ."
-                                ),
-                            )
-                            break
-    return [results[s] for s in TARGETS if s in results]
+    """Diagnostic hashes for a complete publisher-named pair. A digest alone grants no trust."""
+    directory = resolve_workbook_directory(raw_dir)
+    checksums = {}
+    for filename in FILES.values():
+        path = directory / filename
+        try:
+            data = path.read_bytes()
+        except (FileNotFoundError, NotADirectoryError):
+            return {}
+        checksums[str(path)] = hashlib.sha256(data).hexdigest()
+    return checksums
 
 
 def extract_barriers_from_raw(raw_dir: str | Path = "data/raw", mode: str = "auto") -> list[ExtractedBarrier]:
-    raw_path = Path(raw_dir)
-    if mode == "strict":
-        return _extract_strict_csv(raw_path)
-    if mode == "heuristic":
-        return _extract_keyword_tables(raw_path)
-    strict_records = _extract_strict_csv(raw_path)
-    if len(strict_records) == len(TARGETS):
-        return strict_records
-    return _extract_keyword_tables(raw_path)
+    records = extraction_payload(raw_dir, mode)["records"]
+    keys = [f.name for f in fields(ExtractedBarrier)]
+    return [ExtractedBarrier(**{key: row[key] for key in keys}) for row in records]
 
 
-def is_extraction_validated(payload: dict[str, object]) -> bool:
-    if payload.get("extracted_count", 0) != len(TARGETS):
+def is_extraction_validated(payload: object) -> bool:
+    """Reproduce an exported artifact from pinned source bytes before trusting it."""
+    if not isinstance(payload, dict) or payload.get("status") != VALIDATED_STATUS:
         return False
-    records = payload.get("records", [])
-    if not records:
+    if not isinstance(payload.get("raw_dir"), str) or payload.get("mode") not in ("auto", "strict"):
         return False
-    if not payload.get("checksums"):
+    canonical = extraction_payload(payload["raw_dir"], payload["mode"])
+    if canonical["status"] != VALIDATED_STATUS:
         return False
-
-    expected_states = set(TARGETS.keys())
-    found_states = set()
-
-    required_fields = ["source_file", "sheet_name", "row", "column", "unit", "extraction_method", "notes"]
-
-    for record in records:
-        if record.get("extraction_method") == "seeded_fallback":
-            return False
-        barrier = record.get("barrier_pj")
-        if not isinstance(barrier, (int, float)) or not math.isfinite(barrier) or barrier <= 0:
-            return False
-        for field in required_fields:
-            if field not in record or record[field] in (None, ""):
-                return False
-        found_states.add(record.get("state"))
-
-    if expected_states != found_states:
+    try:
+        # JSON comparison distinguishes true from 1, rejects NaN, and checks
+        # every endpoint and hash as well as array cardinality and order.
+        return json.dumps(payload, sort_keys=True, allow_nan=False) == json.dumps(
+            canonical, sort_keys=True, allow_nan=False
+        )
+    except (TypeError, ValueError):
         return False
 
-    return True
 
-
-def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict[str, object]:
-    extracted = extract_barriers_from_raw(raw_dir, mode=mode)
-    payload = {
-        "raw_dir": str(raw_dir),
-        "mode": mode,
-        "extracted_count": len(extracted),
-        "checksums": collect_raw_file_checksums(raw_dir),
-        "records": [asdict(row) for row in extracted],
-    }
+def _write_json(out_path: str | Path, data: dict) -> None:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=out.parent, delete=False) as tmp:
+            tmp_name = tmp.name
+            json.dump(data, tmp, indent=2, allow_nan=False)
+            tmp.write("\n")
+        os.replace(tmp_name, out)
+    finally:
+        if tmp_name:
+            Path(tmp_name).unlink(missing_ok=True)
+
+
+def write_extraction_artifact(raw_dir: str | Path, out_path: str | Path, mode: str = "auto") -> dict:
+    payload = extraction_payload(raw_dir, mode)
+    _write_json(out_path, payload)
     return payload
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract hopfion barriers from raw MOESM CSV/XLSX tables.")
-    parser.add_argument("--raw", default="data/raw", help="Raw data directory")
-    parser.add_argument("--out", default="data/processed/extracted_barriers.json", help="Output JSON artifact path")
-    parser.add_argument("--mode", default="auto", choices=["auto", "strict", "heuristic"], help="Extraction mode")
+    parser = argparse.ArgumentParser(description="Extract benchmark barriers from reviewed workbooks.")
+    parser.add_argument("--raw", default="data/raw")
+    parser.add_argument("--out", default="data/processed/extracted_barriers.json")
+    parser.add_argument("--mode", default="auto", choices=["auto", "strict", "heuristic"])
+    parser.add_argument("--candidate-manifest", help="Check a proposed literal-cell mapping offline.")
     args = parser.parse_args()
-    payload = write_extraction_artifact(args.raw, args.out, mode=args.mode)
-    print(f"wrote {args.out} with {payload['extracted_count']} extracted records (mode={args.mode})")
+    if args.candidate_manifest:
+        if args.mode == "heuristic":
+            parser.error("candidate review requires explicit mappings")
+        try:
+            records = extract_workbooks(Path(args.raw), load_manifest(Path(args.candidate_manifest)))
+        except WorkbookError as exc:
+            parser.exit(2, f"Candidate rejected: {exc}\n")
+        payload = {"status": "candidate_only", "extracted_count": 0, "records": [],
+                   "candidate_records": records}
+        _write_json(args.out, payload)
+    else:
+        payload = write_extraction_artifact(args.raw, args.out, args.mode)
+    print(f"{payload['status']}: {payload['extracted_count']} validated records; {args.out}")
 
 
 if __name__ == "__main__":

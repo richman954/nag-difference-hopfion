@@ -25,11 +25,14 @@ def write_extraction_comparison_csv(out_csv: str | Path, raw_dir: str = "data/ra
             "sheet_name",
             "row",
             "column",
+            "minimum_energy_cell",
+            "saddle_energy_cell",
+            "sha256",
         ])
         for record in table["records"]:
             s = seeded[record["state"]]
             delta = float(record["barrier_pj"]) - float(s["barrier_pj"])
-            replacement = record["provenance_status"] == "extracted_from_raw_moesm"
+            replacement = table["mode"] == "extracted"
             writer.writerow([
                 record["state"],
                 s["barrier_pj"],
@@ -41,5 +44,8 @@ def write_extraction_comparison_csv(out_csv: str | Path, raw_dir: str = "data/ra
                 record.get("sheet_name"),
                 record.get("row"),
                 record.get("column"),
+                record.get("minimum", {}).get("energy_cell"),
+                record.get("saddle", {}).get("energy_cell"),
+                record.get("sha256"),
             ])
     return out_path

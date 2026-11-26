@@ -1,7 +1,357 @@
 {
   "raw_dir": "data/raw",
   "mode": "auto",
+  "status": "physical_unit_unresolved",
   "extracted_count": 0,
-  "checksums": {},
-  "records": []
+  "checksums": {
+    "41567_2026_3236_MOESM13_ESM.xlsx": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+    "41567_2026_3236_MOESM16_ESM.xlsx": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc"
+  },
+  "records": [],
+  "source_audit": {
+    "doi": "10.1038/s41567-026-03236-0",
+    "article": "https://www.nature.com/articles/s41567-026-03236-0",
+    "benchmark_source_discovery_issue": "https://github.com/richman954/nag-difference-hopfion/issues/69",
+    "sources": [
+      {
+        "publisher_label": "Source Data Fig. 5",
+        "source_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM13_ESM.xlsx",
+        "filename": "41567_2026_3236_MOESM13_ESM.xlsx",
+        "sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+        "size_bytes": 23482,
+        "retrieved_utc_date": "2026-11-25"
+      },
+      {
+        "publisher_label": "Source Data Extended Data Fig. 9",
+        "source_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM16_ESM.xlsx",
+        "filename": "41567_2026_3236_MOESM16_ESM.xlsx",
+        "sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+        "size_bytes": 23482,
+        "retrieved_utc_date": "2026-11-25"
+      }
+    ],
+    "byte_identical": true,
+    "unique_workbook_payloads": 1,
+    "status": "physical_unit_unresolved",
+    "validated_count": 0,
+    "numeric_barrier_count": 3,
+    "method": "Unique highest sampled energy minus the directed starting image on each branch.",
+    "physical_unit_caveat": "The source headers and the published Fig. 5 and Extended Data Fig. 9 axes say pJ. Each plotted column is energy density times Sheet1!A2 divided by 1e-15. If density is in J/m^3 and volume in m^3, the resulting plotted unit is fJ. The density columns do not state their unit. The two pJ interpretations differ by a factor of 1000.",
+    "volume": {
+      "sheet": "Sheet1",
+      "cell": "A2",
+      "formula": "=3*70*3*70*1.5*70*1E-27",
+      "raw": "4.6305E-21"
+    },
+    "cache_replay_absolute_tolerance": "1E-15",
+    "paths": [
+      {
+        "path": "merger",
+        "source": "Source Data Fig. 5",
+        "filename": "41567_2026_3236_MOESM13_ESM.xlsx",
+        "sheet": "Sheet1",
+        "energy_header_cell": "F1",
+        "energy_header": "E[pJ] merge",
+        "energy_range": "F2:F30",
+        "coordinate_range": "D2:D30",
+        "doi": "10.1038/s41567-026-03236-0",
+        "source_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM13_ESM.xlsx",
+        "source_sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+        "retrieved_utc_date": "2026-11-25",
+        "source_unit_label": "pJ",
+        "coordinate_header_cell": "D1",
+        "coordinate_header": "Coordinate",
+        "density_header_cell": "E1",
+        "density_header": "energy dens",
+        "density_unit": null,
+        "physical_unit_status": "physical_unit_unresolved",
+        "energy_formula_at_first_row": "=E2*$A$2/0.000000000000001",
+        "coordinate_formula_at_first_row": "=(C2-$C$2)/($C$30-$C$2)",
+        "chart_series_ranges": [
+          "Sheet1!$F$1:$F$1",
+          "Sheet1!$D$2:$D$30",
+          "Sheet1!$F$2:$F$30"
+        ],
+        "chart_cache_values_matched": 58,
+        "images": 29,
+        "initial_minimum": {
+          "image": {
+            "cell": "B2",
+            "raw": "0"
+          },
+          "distance": {
+            "cell": "C2",
+            "raw": "104.27964019775401"
+          },
+          "coordinate": {
+            "cell": "D2",
+            "raw": "0"
+          },
+          "density": {
+            "cell": "E2",
+            "raw": "-30549.431640625"
+          },
+          "energy": {
+            "cell": "F2",
+            "raw": "-0.14145914321191405"
+          }
+        },
+        "saddle": {
+          "image": {
+            "cell": "B7",
+            "raw": "5"
+          },
+          "distance": {
+            "cell": "C7",
+            "raw": "625.71563720703102"
+          },
+          "coordinate": {
+            "cell": "D7",
+            "raw": "0.17877370259247743"
+          },
+          "density": {
+            "cell": "E7",
+            "raw": "-30501.08203125"
+          },
+          "energy": {
+            "cell": "F7",
+            "raw": "-0.14123526034570311"
+          }
+        },
+        "final_image": {
+          "image": {
+            "cell": "B30",
+            "raw": "28"
+          },
+          "distance": {
+            "cell": "C30",
+            "raw": "3021.01733398437"
+          },
+          "coordinate": {
+            "cell": "D30",
+            "raw": "1"
+          },
+          "density": {
+            "cell": "E30",
+            "raw": "-31535.29296875"
+          },
+          "energy": {
+            "cell": "F30",
+            "raw": "-0.14602417409179688"
+          }
+        },
+        "barrier_in_column_units": "0.00022388286621094",
+        "conditional_pJ_if_header_scale": "0.00022388286621094",
+        "conditional_J_if_SI_density_and_volume": "2.23882866210937500E-19",
+        "conditional_pJ_if_SI_density_and_volume": "2.23882866210937500E-7",
+        "max_abs_energy_cache_error": "2.500E-17",
+        "max_abs_coordinate_cache_error": "6.524720165720007708409722969778776E-17"
+      },
+      {
+        "path": "collapse",
+        "source": "Source Data Fig. 5",
+        "filename": "41567_2026_3236_MOESM13_ESM.xlsx",
+        "sheet": "Sheet1",
+        "energy_header_cell": "M1",
+        "energy_header": "E[pJ] collapce",
+        "energy_range": "M2:M37",
+        "coordinate_range": "K2:K37",
+        "doi": "10.1038/s41567-026-03236-0",
+        "source_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM13_ESM.xlsx",
+        "source_sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+        "retrieved_utc_date": "2026-11-25",
+        "source_unit_label": "pJ",
+        "coordinate_header_cell": "K1",
+        "coordinate_header": "Coordinate",
+        "density_header_cell": "L1",
+        "density_header": "energy dens",
+        "density_unit": null,
+        "physical_unit_status": "physical_unit_unresolved",
+        "energy_formula_at_first_row": "=L2*$A$2/0.000000000000001",
+        "coordinate_formula_at_first_row": "=(J2-$J$2)/($J$37-$J$2)+1",
+        "chart_series_ranges": [
+          "Sheet1!$M$1:$M$1",
+          "Sheet1!$K$2:$K$37",
+          "Sheet1!$M$2:$M$37"
+        ],
+        "chart_cache_values_matched": 72,
+        "images": 36,
+        "initial_minimum": {
+          "image": {
+            "cell": "I2",
+            "raw": "0"
+          },
+          "distance": {
+            "cell": "J2",
+            "raw": "27.984062194824201"
+          },
+          "coordinate": {
+            "cell": "K2",
+            "raw": "1"
+          },
+          "density": {
+            "cell": "L2",
+            "raw": "-31552.22265625"
+          },
+          "energy": {
+            "cell": "M2",
+            "raw": "-0.14610256700976562"
+          }
+        },
+        "saddle": {
+          "image": {
+            "cell": "I13",
+            "raw": "11"
+          },
+          "distance": {
+            "cell": "J13",
+            "raw": "335.83767700195301"
+          },
+          "coordinate": {
+            "cell": "K13",
+            "raw": "1.3147862689117047"
+          },
+          "density": {
+            "cell": "L13",
+            "raw": "-31490.53515625"
+          },
+          "energy": {
+            "cell": "M13",
+            "raw": "-0.14581692304101562"
+          }
+        },
+        "final_image": {
+          "image": {
+            "cell": "I37",
+            "raw": "35"
+          },
+          "distance": {
+            "cell": "J37",
+            "raw": "1005.96069335938"
+          },
+          "coordinate": {
+            "cell": "K37",
+            "raw": "2"
+          },
+          "density": {
+            "cell": "L37",
+            "raw": "-32693.6640625"
+          },
+          "energy": {
+            "cell": "M37",
+            "raw": "-0.15138801144140623"
+          }
+        },
+        "barrier_in_column_units": "0.00028564396875000",
+        "conditional_pJ_if_header_scale": "0.00028564396875000",
+        "conditional_J_if_SI_density_and_volume": "2.8564396875000000E-19",
+        "conditional_pJ_if_SI_density_and_volume": "2.8564396875000000E-7",
+        "max_abs_energy_cache_error": "3.500E-17",
+        "max_abs_coordinate_cache_error": "1.889989228513924565750178503454702E-16"
+      },
+      {
+        "path": "escape",
+        "source": "Source Data Extended Data Fig. 9",
+        "filename": "41567_2026_3236_MOESM16_ESM.xlsx",
+        "sheet": "Sheet1",
+        "energy_header_cell": "T1",
+        "energy_header": "E[pJ] escape",
+        "energy_range": "T2:T26",
+        "coordinate_range": "R2:R26",
+        "doi": "10.1038/s41567-026-03236-0",
+        "source_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM16_ESM.xlsx",
+        "source_sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc",
+        "retrieved_utc_date": "2026-11-25",
+        "source_unit_label": "pJ",
+        "coordinate_header_cell": "R1",
+        "coordinate_header": "Coordinate",
+        "density_header_cell": "S1",
+        "density_header": "energy dens",
+        "density_unit": null,
+        "physical_unit_status": "physical_unit_unresolved",
+        "energy_formula_at_first_row": "=S2*$A$2/0.000000000000001",
+        "coordinate_formula_at_first_row": "=(Q2-$Q$2)/($Q$26-$Q$2)+1",
+        "chart_series_ranges": [
+          "Sheet1!$T$1:$T$1",
+          "Sheet1!$R$2:$R$26",
+          "Sheet1!$T$2:$T$26"
+        ],
+        "chart_cache_values_matched": 50,
+        "images": 25,
+        "initial_minimum": {
+          "image": {
+            "cell": "P2",
+            "raw": "0"
+          },
+          "distance": {
+            "cell": "Q2",
+            "raw": "154.37115478515599"
+          },
+          "coordinate": {
+            "cell": "R2",
+            "raw": "1"
+          },
+          "density": {
+            "cell": "S2",
+            "raw": "-31552.234375"
+          },
+          "energy": {
+            "cell": "T2",
+            "raw": "-0.14610262127343748"
+          }
+        },
+        "saddle": {
+          "image": {
+            "cell": "P18",
+            "raw": "16"
+          },
+          "distance": {
+            "cell": "Q18",
+            "raw": "2624.42944335937"
+          },
+          "coordinate": {
+            "cell": "R18",
+            "raw": "1.6668915871102659"
+          },
+          "density": {
+            "cell": "S18",
+            "raw": "-31394.23046875"
+          },
+          "energy": {
+            "cell": "T18",
+            "raw": "-0.14537098418554686"
+          }
+        },
+        "final_image": {
+          "image": {
+            "cell": "P26",
+            "raw": "24"
+          },
+          "distance": {
+            "cell": "Q26",
+            "raw": "3858.208984375"
+          },
+          "coordinate": {
+            "cell": "R26",
+            "raw": "2"
+          },
+          "density": {
+            "cell": "S26",
+            "raw": "-32693.705078125"
+          },
+          "energy": {
+            "cell": "T26",
+            "raw": "-0.15138820136425779"
+          }
+        },
+        "barrier_in_column_units": "0.00073163708789062",
+        "conditional_pJ_if_header_scale": "0.00073163708789062",
+        "conditional_J_if_SI_density_and_volume": "7.3163708789062500E-19",
+        "conditional_pJ_if_SI_density_and_volume": "7.3163708789062500E-7",
+        "max_abs_energy_cache_error": "2.2500E-17",
+        "max_abs_coordinate_cache_error": "1.631738541994341195848967714545217E-16"
+      }
+    ]
+  },
+  "reason": "Energy headers and figure axes say pJ. The density unit is missing and the volume-based worksheet formula divides by 1e-15."
 }

@@ -1,0 +1,24 @@
+{
+  "article_doi": "10.1038/s41567-026-03236-0",
+  "article_url": "https://www.nature.com/articles/s41567-026-03236-0",
+  "workbooks": [
+    {
+      "publisher_label": "Source Data Fig. 5 (download XLSX )",
+      "figure_url": "https://www.nature.com/articles/s41567-026-03236-0/figures/5",
+      "download_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM13_ESM.xlsx",
+      "filename": "41567_2026_3236_MOESM13_ESM.xlsx",
+      "downloaded_at_utc": "2026-11-25T03:52:10+00:00",
+      "bytes": 23482,
+      "sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc"
+    },
+    {
+      "publisher_label": "Source Data Extended Data Fig. 9 (download XLSX )",
+      "figure_url": "https://www.nature.com/articles/s41567-026-03236-0/figures/15",
+      "download_url": "https://static-content.springer.com/esm/art%3A10.1038%2Fs41567-026-03236-0/MediaObjects/41567_2026_3236_MOESM16_ESM.xlsx",
+      "filename": "41567_2026_3236_MOESM16_ESM.xlsx",
+      "downloaded_at_utc": "2026-11-25T03:52:10+00:00",
+      "bytes": 23482,
+      "sha256": "134949b49338512245559e0110a809cb29482978639227e4b5b10e594c88c7cc"
+    }
+  ]
+}

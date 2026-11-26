@@ -12,6 +12,12 @@ dependencies = [
   "numpy>=1.26",
 ]
 
+[project.optional-dependencies]
+plot = ["Pillow"]
+
+[tool.setuptools]
+packages = ["nagdiff"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]

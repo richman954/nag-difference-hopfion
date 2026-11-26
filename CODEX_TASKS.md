@@ -15,25 +15,17 @@
 
 ## Current priority — authoritative barrier data
 
-The paper used by this benchmark is:
+- [x] Acquire the publisher's Figure 5 and Extended Data Figure 9 workbooks with independent URLs, original filenames, dates and SHA-256 receipts.
+- [x] Map all 90 images and reproduce the energy and reaction-coordinate formulas and chart caches for each branch.
+- [x] Calculate all three directed saddle-minus-initial-minimum differences and cross-check the saddle images against the published Extended Data Figure 9.
+- [x] Test explicit units, original spreadsheet addresses, checksums, malformed inputs and atomic fallback.
+- [x] Test whether the scoring template responds to permuting or removing the barriers and whether coarse sampling recovers the known discrete saddles.
+- [x] Implement a two-stage route prediction comparison with an independently recorded prediction digest and a complete enrolled roster.
 
-> Chen et al., "Laser-induced nucleation of magnetic hopfions," Nature Physics 22, 736–744 (2026). DOI: 10.1038/s41567-026-03236-0.
+## Open scientific and formalization tasks
 
-The article exposes the MEP simulation datasets as **Source Data Fig. 5** and
-**Source Data Extended Data Fig. 9** XLSX files. The repository's existing
-`MOESM13` / `MOESM16` assumptions are not established as the publisher's
-source-data names and must not be used as provenance shortcuts.
-
-- [ ] Obtain the publisher-provided Source Data Fig. 5 and Source Data Extended Data Fig. 9 XLSX files.
-- [ ] Record original filenames, source URL/DOI context, retrieval date, and SHA-256 checksums.
-- [ ] Inspect workbook sheet names, units, reaction-coordinate columns, and energy columns before defining any fixed mapping.
-- [ ] Replace the `MOESM13` / `MOESM16` routing assumptions in `nagdiff/extraction.py` with mappings derived from the actual workbooks.
-- [ ] Extract and independently recompute the three target barriers: skyrmion–antiskyrmion merger → hopfion, hopfion collapse/shrinking, and hopfion escape through the free surface.
-- [ ] Add regression fixtures/tests that prove the mapping, units, checksums, and atomic fallback behavior.
-- [ ] Compare extracted values against the plotted MEPs in Fig. 5 / Extended Data Fig. 9 and document any discrepancy with the seeded placeholders.
-- [ ] Promote seeded placeholders to validated values only after the complete provenance/test gate passes.
-
-## After data validation
-
-- [ ] Feed validated barriers through pairwise/scoring sensitivity analyses.
+- [ ] Establish the density unit and any scaling between the original simulation export and the spreadsheet. Record primary evidence and re-review all three physical barriers before promotion.
+- [ ] Evaluate the full score and barrier-only baseline on future independently enrolled, route-labeled runs at matched conditions. Freeze model settings and inputs before observing outcomes.
 - [ ] Replace Lean starter `sorry` statements incrementally with proved lemmas tied to stable APIs.
+
+[Workbook evidence](data/processed/EXTRACTION_STATUS.md) · [Benchmark results](docs/benchmark_validation.md)
