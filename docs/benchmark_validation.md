@@ -6,16 +6,22 @@ Run `python -m nagdiff.benchmark_controls > controls.json` from the repository r
 
 **All six assignments and the zero-barrier control rank merger first, collapse second and escape third.** Only the publisher assignment gives the same ordering for the full score and the barrier-only score. Each template auxiliary term already favors that ordering. With the original assignments, the energy term accounts for 0.06270% of the escape-minus-collapse score difference on the printed scale and 0.00006274% on the conditional SI scale. These are properties of the supplied weights and example inputs. Merger also starts in a different basin from the two loss routes.
 
-### How many escapes would distinguish the two scores?
+### When does the full forecast beat its two comparators?
 
 Restrict the softmax to the two exits from the hopfion. Use a 1 pJ energy reference and a dimensionless softmax temperature of 1 to reproduce the numerical barrier weighting of the example template. For a constant escape forecast `p` and observed escape fraction `q` among resolved runs, the mean binary Brier loss is `p² − 2pq + q`. Two distinct forecasts tie at the midpoint of their probabilities. This is a prespecified scoring criterion. It requires no outcome labels to compute.
 
-| Conditional workbook scale | Full score, escape probability | Barrier-only, escape probability | Observed escape fraction at tie |
-|---|---:|---:|---:|
-| Printed pJ | 32.9318% | 49.9889% | 41.4603% |
-| SI density | 32.9416% | 50.0000% (rounded) | 41.4708% |
+| Conditional workbook scale | Full escape probability | Barrier-only | Prior-only | Full ties barrier-only at | Full ties prior-only at |
+|---|---:|---:|---:|---:|---:|
+| Printed pJ | 32.9318% | 49.9889% | 37.5000% | 41.4603% | 35.2159% |
+| SI density | 32.9416% | 50.0000% (rounded) | 37.5000% | 41.4708% | 35.2208% |
 
-At either scale, the full score earns a lower Brier loss **below** the corresponding threshold, and barrier-only earns a lower loss **above** it. For example, among ten resolved events at one matched condition, four escapes favor the full template and five favor barrier-only. These probabilities follow from the chosen weights, energy reference, and dimensionless softmax temperature. No escape frequency for the Chen sample has been established. The JSON control output includes the probabilities and exact crossover for the floating-point forecasts in each scenario.
+At either scale the full forecast earns lower Brier loss than a given comparator when the observed fraction is below their tie. At four escapes in ten, for example, prior-only scores best, followed by full and then barrier-only. At the SI reading their mean losses are 0.240625, 0.244982 and 0.250000 (rounded). Those are worked outcomes, not observations. Keep full versus barrier-only as the primary comparison. Prespecify full versus prior-only as a descriptive secondary comparison; a confirmatory claim for that contrast requires its own power and multiplicity plan. The primary design's 90% power does not carry over to the smaller contrast.
+
+The prior-only score retains just `−beta × log(prior + delta)` and the common softmax temperature. Its escape probability is approximately 0.30 / (0.30 + 0.50) for the example settings. If the prior coefficient is zero, that forecast is 0.5. All three methods condition on the same two loss routes. The JSON control output includes both ties and their exact fractions for the floating-point forecasts.
+
+#### Origin of the template priors
+
+The May 13, 2026 starter archive left the probability fields empty. Their original headings concerned *nucleation*. The expanded CSV first appearing on the PR's main-line ancestry on May 17 contains `probability=0.50` for collapse and `0.30` for escape. Its columns provide no route counts, source condition, calibration or fitting record. The expanded template bytes have SHA-256 `e6e9b84c48a25cbee9d5f8931f5cb7fb273227861dbab330ca4b5f5ad02ecbd2`. Treat the values as example inputs. Keep any independently estimated priors and their source separate when freezing a physical protocol. Pulse-level nucleation frequencies target a different event. [May 13 starter archive](https://github.com/richman954/nag-difference-hopfion/blob/09b51ec315763ba1cff7e2243ad347551663ca91/nag-difference-hopfion-initial-git-repo.zip) · [May 17 template rows](https://github.com/richman954/nag-difference-hopfion/blob/5a5dd16c97397b0778d50086c31075dc312f8be7/data/processed/nag_hopfion_scoring_template.csv#L3-L4)
 
 ### What would a thermal barrier model predict?
 
@@ -66,7 +72,7 @@ The intended target is the probability of escape among hopfions with a resolved 
 
 1. Before outcomes are available, prepare the plan using the schema below. Establish the roster in an independent enrollment record. Source route priors, observables, topology penalties, model coefficients, the energy reference and the common softmax temperature from theory or separate training data. Record their origin and the model version. Define censoring and the adjudication policy before unblinding.
 2. Run `freeze` and record its printed SHA-256 in an independent, dated record before reading outcomes. Retain the plan and the frozen snapshot.
-3. Obtain one outcome per enrolled condition/run/window, including censored and indeterminate cases. Score both models on exactly the same resolved events. Use the original independently recorded digest for the comparison.
+3. Obtain one outcome per enrolled condition/run/window, including censored and indeterminate cases. Score every frozen model on the same resolved events. Use the original independently recorded digest for the comparison.
 
 ```sh
 python -m nagdiff.route_evaluation freeze plan.json predictions.json
@@ -77,14 +83,16 @@ python -m nagdiff.route_evaluation evaluate predictions.json outcomes.json --sna
 | File | Required fields |
 |---|---|
 | Plan | `protocol_id`, `cohort_design` = `all_enrolled`, `enrollment_source`, `feature_source`, `model`, `conditions` |
-| Model | `energy_unit`, `energy_reference`, `temperature`, `alpha`, `beta`, `gamma`, `delta`. Reference, temperature and delta are positive. Both models divide the declared barrier by the same energy reference before scoring. |
+| Model | `energy_unit`, `energy_reference`, `temperature`, `alpha`, `beta`, `gamma`, `delta`. Reference, temperature and delta are positive. The full and barrier-only models divide the barrier by that reference. Prior-only omits the barrier. |
 | Each condition | `condition_id`, `window`, `run_ids`, `routes` containing `collapse` and `escape` |
 | Each route | `barrier` in the declared energy unit, `observable_mismatch`, `prior_probability`, `topology_penalty` |
 | Outcomes | `protocol_id`, `outcome_source` and `records`. Each record has `condition_id`, `run_id`, `window` and one `outcome` from `collapse`, `escape`, `censored`, `indeterminate`. |
 
+A new freeze writes a version 2 snapshot containing all three forecasts. Earlier, version 1 snapshots remain usable with their two original forecasts and independently recorded digests. The reader never reconstructs a third forecast after unblinding.
+
 The `design` command reads the pinned predictions alone. For each enrolled condition it reports the tie fraction and the direction in which either model would score better. When both forecasts are identical, every outcome fraction gives a tie.
 
-The `evaluate` command reports paired binary Brier losses, coverage and outcome counts for each condition and for all resolved runs pooled. Its second summary weights each predeclared condition equally. If any enrolled condition has zero resolved runs, its mean and the equal-condition comparison are null. The original pooled result remains available whenever at least one run resolves. A negative full-minus-barrier-only difference favors the full model under the specified weighting. Neither summary estimates unconditional, time-dependent escape in the presence of censoring.
+The `evaluate` command reports paired binary Brier losses, coverage and outcome counts for each condition and for all resolved runs pooled. Its second summary weights each predeclared condition equally. If any enrolled condition has zero resolved runs, its mean and the equal-condition comparison are null. Version 2 reports primary and secondary differences, each computed on the same events and each oriented as full minus comparator. The original pooled result remains available whenever at least one run resolves. A negative full-minus-barrier-only difference favors the full model under the specified weighting. Neither summary estimates unconditional, time-dependent escape in the presence of censoring.
 
 A synthetic regression enrolls nine runs in each of two conditions. All nine resolve in one condition and one resolves in the other. Pooling the ten events gives a paired difference of −0.025, while giving each condition equal weight gives +0.235. This illustrates why the target population and weighting should be specified before looking at results. These comparisons are descriptive and do not supply confidence intervals or establish independence among reused seeds.
 

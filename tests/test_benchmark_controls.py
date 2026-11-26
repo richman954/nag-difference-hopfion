@@ -78,9 +78,15 @@ def test_publisher_template_two_route_brier_crossover(result):
         threshold = design["brier_threshold"]
         assert (p["full"], p["barrier_only"], threshold["escape_fraction_at_tie"]) == pytest.approx(expected)
         assert threshold["full_has_lower_loss_when"] == "below_threshold"
-        for escapes, winner in ((4, "full"), (5, "barrier_only")):
+        assert p["prior_only"] == pytest.approx(0.375, abs=1e-12)
+        secondary = design["brier_threshold_vs_prior_only"]
+        assert secondary["escape_fraction_at_tie"] == pytest.approx((p["full"] + p["prior_only"]) / 2)
+        assert secondary["full_has_lower_loss_when"] == "below_threshold"
+        for escapes, winner in ((3, "full"), (4, "prior_only"), (5, "barrier_only")):
             losses = {name: escapes * (1 - value)**2 + (10 - escapes) * value**2 for name, value in p.items()}
             assert min(losses, key=losses.get) == winner
+            if escapes == 4:
+                assert losses["prior_only"] < losses["full"] < losses["barrier_only"]
 
 
 def test_visible_peak_can_hide_a_higher_peak_in_another_interval():
@@ -108,3 +114,4 @@ def test_template_with_zero_coefficients_exposes_permutations_and_ties(tmp_path)
         assert ranks == set(permutations(STATE))
         assert scenario["permutations_with_zero_barrier_rank"] == 0
         assert scenario["two_route_design"]["brier_threshold"]["tie"] == "every_escape_fraction"
+        assert scenario["two_route_design"]["escape_probability"]["prior_only"] == 0.5

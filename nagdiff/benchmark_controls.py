@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 
 from .chen2026_audit import AuditError, audit_publisher_pair
-from .route_evaluation import brier_threshold
+from .route_evaluation import brier_threshold, prior_only_escape_probability
 from .scoring import score_terms, soft_selection_weights
 
 
@@ -70,6 +70,12 @@ def _scoring_controls(paths, template):
 
     zero = evaluate([0.0] * len(STATE))
     zero_rank = _rank(zero)
+    exits = ("collapse", "escape")
+    route_priors = dict(zip(STATE, aux[AUXILIARIES.index("probability")]))
+    prior_p = prior_only_escape_probability(
+        [route_priors[path] for path in exits],
+        beta=coeffs["beta"], delta=coeffs["delta"], temperature=1.0,
+    )
     scenarios = {}
     for field in ("conditional_pJ_if_header_scale", "conditional_pJ_if_SI_density_and_volume"):
         barriers = {name: float(paths[name][field]) for name in STATE}
@@ -78,7 +84,6 @@ def _scoring_controls(paths, template):
         barrier_gap = barriers["escape"] - barriers["collapse"]
         # These settings reproduce the template's numeric pJ coefficient.
         # Merger starts in another basin and is excluded from the two-route forecast.
-        exits = ("collapse", "escape")
         full_p = soft_selection_weights([full[path] for path in exits], 1.0)[1]
         barrier_p = soft_selection_weights([barriers[path] for path in exits], 1.0)[1]
         trials = []
@@ -99,8 +104,9 @@ def _scoring_controls(paths, template):
             "barrier_percent_of_gap": 100 * barrier_gap / gap if gap else None,
             "two_route_design": {
                 "energy_reference_pj": 1.0, "softmax_temperature": 1.0,
-                "escape_probability": {"full": full_p, "barrier_only": barrier_p},
+                "escape_probability": {"full": full_p, "barrier_only": barrier_p, "prior_only": prior_p},
                 "brier_threshold": brier_threshold(full_p, barrier_p),
+                "brier_threshold_vs_prior_only": brier_threshold(full_p, prior_p),
             },
             "permutations": trials,
             "permutations_with_zero_barrier_rank": sum(row["rank"] == zero_rank for row in trials),

@@ -1,9 +1,13 @@
 """Freeze prospective two-route predictions, then evaluate a complete held-out cohort.
 
 The event label is escape (1) or collapse (0) from an initial hopfion. A shared
-energy reference nondimensionalizes both barriers. Both models use the same
+energy reference nondimensionalizes both barriers. All forecasts use the same
 softmax temperature. Censored and indeterminate runs count toward coverage.
-The paired binary Brier difference is full minus barrier-only (lower is better).
+The primary paired binary Brier difference is full minus barrier-only (lower
+is better). Version 2 snapshots also freeze a descriptive prior-only comparison.
+It retains only the full model's beta-weighted log-prior with the same offset.
+At beta zero, prior-only assigns equal weight to both exits. Original version 1
+snapshots retain their two forecasts.
 Barriers must be nonnegative and route priors must lie in [0,1]. The shared
 energy reference, temperature, and log offset must be positive. The upstream
 scorer accepts finite signed auxiliary features and their coefficients.
@@ -31,7 +35,8 @@ from .scoring import score_terms, soft_selection_weights
 
 ROUTES = ("collapse", "escape")
 OUTCOMES = (*ROUTES, "censored", "indeterminate")
-SCORES = ("barrier_only", "full")
+SCORES = ("barrier_only", "full")  # Model names in the original two-forecast API.
+MODELS_BY_VERSION = {1: SCORES, 2: ("barrier_only", "prior_only", "full")}
 
 
 def _keys(value, names):
@@ -103,6 +108,29 @@ def brier_threshold(full_probability: float, barrier_probability: float) -> dict
             "tie": "at_threshold"}
 
 
+def _escape_probability(scores, temperature):
+    if not all(math.isfinite(s / temperature) for s in scores):
+        raise ValueError("score exceeds numerical range at the specified temperature")
+    return soft_selection_weights(scores, temperature)[1]
+
+
+def prior_only_escape_probability(priors, *, beta, delta, temperature):
+    """Forecast escape using just the log-prior term, with priors in collapse, escape order."""
+    try:
+        collapse, escape = priors
+    except (TypeError, ValueError) as exc:
+        raise ValueError("expected one prior per route in collapse, escape order") from exc
+    prior = [_probability(collapse), _probability(escape)]
+    beta, delta, temperature = _number(beta), _number(delta), _number(temperature)
+    # Historical scoring templates allow a zero log offset for positive priors.
+    # Prospective plans additionally enforce a positive offset during validation.
+    if temperature <= 0 or any(p + delta <= 0 for p in prior):
+        raise ValueError("temperature and shifted priors must be positive")
+    zeros = [0.0] * len(ROUTES)
+    scores = score_terms(zeros, zeros, prior, zeros, beta=beta, delta=delta)
+    return _escape_probability(scores, temperature)
+
+
 def _probabilities(routes, config):
     _keys(routes, "collapse escape")
     fields = ["barrier", "observable_mismatch", "prior_probability", "topology_penalty"]
@@ -117,13 +145,13 @@ def _probabilities(routes, config):
     b = [v / config["energy_reference"] for v in b]
     full = score_terms(b, mismatch, prior, topology, alpha=config["alpha"],
                        beta=config["beta"], gamma=config["gamma"], delta=config["delta"])
-    probs = {}
-    for name, scores in zip(SCORES, (b, full)):
-        temperature = config["temperature"]
-        if not all(math.isfinite(s / temperature) for s in scores):
-            raise ValueError("score exceeds numerical range at the specified temperature")
-        probs[name] = soft_selection_weights(scores, temperature)[1]
-    return probs
+    temperature = config["temperature"]
+    return {
+        "barrier_only": _escape_probability(b, temperature),
+        "full": _escape_probability(full, temperature),
+        "prior_only": prior_only_escape_probability(prior, beta=config["beta"],
+                                                   delta=config["delta"], temperature=temperature),
+    }
 
 
 def _validate_protocol(obj):
@@ -158,7 +186,7 @@ def freeze(plan_bytes: bytes) -> bytes:
             "escape_probability": _probabilities(entry["routes"], config),
         }
     return _encoded({
-        "schema_version": 1, "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+        "schema_version": 2, "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
         "protocol_id": plan["protocol_id"], "cohort_design": plan["cohort_design"],
         "enrollment_source": plan["enrollment_source"], "feature_source": plan["feature_source"],
         "model": config, "conditions": predictions,
@@ -170,7 +198,8 @@ def _read_snapshot(snapshot_bytes, expected_sha256):
         raise ValueError("snapshot differs from supplied SHA-256")
     snap = _keys(_decode(snapshot_bytes), "schema_version plan_sha256 protocol_id cohort_design "
                  "enrollment_source feature_source model conditions")
-    if type(snap["schema_version"]) is not int or snap["schema_version"] != 1:
+    version = snap["schema_version"]
+    if type(version) is not int or version not in MODELS_BY_VERSION:
         raise ValueError("unsupported snapshot schema version")
     if not re.fullmatch(r"[0-9a-f]{64}", _text(snap["plan_sha256"])):
         raise ValueError("invalid plan SHA-256 in snapshot")
@@ -182,7 +211,7 @@ def _read_snapshot(snapshot_bytes, expected_sha256):
         _text(condition)
         _keys(entry, "window run_ids escape_probability")
         _text(entry["window"])
-        probs = _keys(entry["escape_probability"], "barrier_only full")
+        probs = _keys(entry["escape_probability"], " ".join(MODELS_BY_VERSION[version]))
         for p in probs.values():
             _probability(p)
         runs = [_text(run) for run in _list(entry["run_ids"])]
@@ -193,8 +222,11 @@ def _read_snapshot(snapshot_bytes, expected_sha256):
 
 def _condition_design(entry):
     probs = entry["escape_probability"]
-    return {"window": entry["window"], "enrolled": len(entry["run_ids"]),
-            "escape_probability": probs, "brier_threshold": brier_threshold(probs["full"], probs["barrier_only"])}
+    result = {"window": entry["window"], "enrolled": len(entry["run_ids"]),
+              "escape_probability": probs, "brier_threshold": brier_threshold(probs["full"], probs["barrier_only"])}
+    if "prior_only" in probs:
+        result["brier_threshold_vs_prior_only"] = brier_threshold(probs["full"], probs["prior_only"])
+    return result
 
 
 def design(snapshot_bytes: bytes, expected_sha256: str) -> dict:
@@ -205,10 +237,14 @@ def design(snapshot_bytes: bytes, expected_sha256: str) -> dict:
             "conditions": {condition: _condition_design(entry) for condition, entry in snap["conditions"].items()}}
 
 
-def _mean_losses(paired):
+def _mean_losses(paired, models):
     n = len(paired)
-    return {"mean_brier": {m: math.fsum(p["brier"][m] for p in paired) / n if n else None for m in SCORES},
-            "mean_full_minus_barrier_only": math.fsum(p["full_minus_barrier_only"] for p in paired) / n if n else None}
+    result = {"mean_brier": {m: math.fsum(p["brier"][m] for p in paired) / n if n else None for m in models}}
+    for baseline in models:
+        if baseline != "full":
+            key = f"full_minus_{baseline}"
+            result[f"mean_{key}"] = math.fsum(p[key] for p in paired) / n if n else None
+    return result
 
 
 def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) -> dict:
@@ -219,6 +255,8 @@ def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) 
         raise ValueError("outcomes have a different protocol_id")
     _text(data["outcome_source"])
     conditions = snap["conditions"]
+    models = MODELS_BY_VERSION[snap["schema_version"]]
+    baselines = [name for name in models if name != "full"]
     roster = {(condition, run) for condition, entry in conditions.items() for run in entry["run_ids"]}
     seen = set()
     counts_by_condition = {condition: Counter(dict.fromkeys(OUTCOMES, 0)) for condition in conditions}
@@ -240,8 +278,9 @@ def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) 
         if outcome in ROUTES:
             y = int(outcome == "escape")
             losses = {m: (p - y) ** 2 for m, p in entry["escape_probability"].items()}
+            differences = {f"full_minus_{b}": losses["full"] - losses[b] for b in baselines}
             paired.append({"condition_id": key[0], "run_id": key[1], "outcome": outcome,
-                           "brier": losses, "full_minus_barrier_only": losses["full"] - losses["barrier_only"]})
+                           "brier": losses, **differences})
             paired_by_condition[key[0]].append(paired[-1])
     if seen != roster:
         raise ValueError(f"missing outcomes for {len(roster - seen)} enrolled run(s)")
@@ -255,24 +294,25 @@ def evaluate(snapshot_bytes: bytes, expected_sha256: str, outcome_bytes: bytes) 
             **_condition_design(entry), "outcome_counts": dict(totals),
             "resolved": len(rows), "resolved_fraction": len(rows) / len(entry["run_ids"]),
             "observed_escape_fraction": totals["escape"] / len(rows) if rows else None,
-            **_mean_losses(rows),
+            **_mean_losses(rows, models),
         }
     k = len(conditions)
     missing = sorted(c for c in conditions if not paired_by_condition[c])
     equal = {
         "conditions": k, "conditions_without_resolved_events": missing,
         "mean_brier": {m: None if missing else math.fsum(s["mean_brier"][m] for s in summaries.values()) / k
-                       for m in SCORES},
-        "mean_full_minus_barrier_only": None if missing else
-            math.fsum(s["mean_full_minus_barrier_only"] for s in summaries.values()) / k,
+                       for m in models},
     }
+    for baseline in baselines:
+        key = f"mean_full_minus_{baseline}"
+        equal[key] = None if missing else math.fsum(s[key] for s in summaries.values()) / k
     return {
         "status": "scored_resolved_events" if n else "no_resolved_events",
         "estimand": "Mean paired binary Brier loss conditional on observing a resolved route in the planned window.",
         "snapshot_sha256": expected_sha256, "plan_sha256": snap["plan_sha256"],
         "outcomes_sha256": hashlib.sha256(outcome_bytes).hexdigest(), "outcome_source": data["outcome_source"],
         "enrolled": len(roster), "outcome_counts": dict(counts), "resolved": n, "resolved_fraction": n / len(roster),
-        **_mean_losses(paired), "by_condition": summaries, "equal_condition": equal,
+        **_mean_losses(paired, models), "by_condition": summaries, "equal_condition": equal,
         "paired_runs": paired,
     }
 

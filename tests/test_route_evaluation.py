@@ -9,7 +9,7 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 
-from nagdiff.route_evaluation import brier_threshold, design, evaluate, freeze, main
+from nagdiff.route_evaluation import brier_threshold, design, evaluate, freeze, main, prior_only_escape_probability
 
 
 def plan():
@@ -48,14 +48,22 @@ def scored(p, y):
 
 class TestRoutes(unittest.TestCase):
     def test_original_v1_snapshot_replays_and_supports_outcome_blind_design(self):
-        raw = freeze(encode(plan()))
-        # Digest of the same fixture as frozen by the original v1 implementation.
+        # These are the two predictions and metadata frozen by the v1 implementation.
+        p = plan()
+        entry = p["conditions"][0]
+        snapshot = {k: p[k] for k in ("protocol_id", "cohort_design", "enrollment_source", "feature_source", "model")}
+        snapshot.update(schema_version=1, plan_sha256="fc3d4a3667f2e7fb0dc9b851a9ea9aa9a031bf2cba4ac2c599cb0ec0bc89232e",
+                        conditions={"synthetic-A": {"run_ids": entry["run_ids"], "window": entry["window"],
+                                                    "escape_probability": {"barrier_only": 0.2689414213699951, "full": 0.5}}})
+        raw = (json.dumps(snapshot, indent=2, sort_keys=True) + "\n").encode()
         digest = "5cd2659dbfc6b66c8b2a14b261434f2c9f8a42128973529a9c5a69d93e390476"
         self.assertEqual(hashlib.sha256(raw).hexdigest(), digest)
         details = design(raw, digest)["conditions"]["synthetic-A"]
         self.assertEqual(details["enrolled"], 4)
         self.assertEqual(details["brier_threshold"]["full_has_lower_loss_when"], "above_threshold")
         result = evaluate(raw, digest, encode(outcomes()))
+        self.assertNotIn("prior_only", json.dumps(result))
+        self.assertNotIn("prior_only", json.dumps(details))
         for key, value in details.items():
             self.assertEqual(value, result["by_condition"]["synthetic-A"][key])
         self.assertEqual(result["equal_condition"]["mean_brier"], result["mean_brier"])
@@ -115,8 +123,9 @@ class TestRoutes(unittest.TestCase):
         missing = scored(p, y)
         self.assertAlmostEqual(missing["mean_full_minus_barrier_only"], -0.09)
         self.assertEqual(missing["equal_condition"]["conditions_without_resolved_events"], ["synthetic-B"])
-        self.assertEqual(missing["equal_condition"]["mean_brier"], {"barrier_only": None, "full": None})
+        self.assertEqual(missing["equal_condition"]["mean_brier"], {"barrier_only": None, "full": None, "prior_only": None})
         self.assertIsNone(missing["equal_condition"]["mean_full_minus_barrier_only"])
+        self.assertIsNone(missing["equal_condition"]["mean_full_minus_prior_only"])
         self.assertIsNone(missing["by_condition"]["synthetic-B"]["observed_escape_fraction"])
 
     def test_pin_does_not_bypass_snapshot_schema_checks(self):
@@ -132,6 +141,72 @@ class TestRoutes(unittest.TestCase):
                     design(raw, digest)
                 with self.assertRaises(ValueError):
                     evaluate(raw, digest, encode(outcomes()))
+
+    def test_snapshot_version_controls_forecast_set(self):
+        for change in ("extra-v1", "missing-v2", "unknown-version", "invalid-prior"):
+            with self.subTest(change=change):
+                snap = json.loads(freeze(encode(plan())))
+                self.assertEqual(snap["schema_version"], 2)
+                probs = snap["conditions"]["synthetic-A"]["escape_probability"]
+                if change == "extra-v1":
+                    snap["schema_version"] = 1
+                elif change == "missing-v2":
+                    del probs["prior_only"]
+                elif change == "unknown-version":
+                    snap["schema_version"] = 3
+                else:
+                    probs["prior_only"] = 1.1
+                raw = encode(snap)
+                digest = hashlib.sha256(raw).hexdigest()
+                with self.assertRaises(ValueError):
+                    design(raw, digest)
+                with self.assertRaises(ValueError):
+                    evaluate(raw, digest, encode(outcomes()))
+
+    def test_prior_only_applies_common_temperature_beta_and_offset(self):
+        prior = (0.5, 0.3)
+        self.assertAlmostEqual(prior_only_escape_probability(prior, beta=1, delta=1e-12, temperature=1),
+                               (0.3 + 1e-12) / (0.8 + 2e-12))
+        self.assertEqual(prior_only_escape_probability(prior, beta=0, delta=1e-12, temperature=1), .5)
+        # A nonnegligible offset and beta/temperature = 2 yield shifted odds squared.
+        self.assertAlmostEqual(prior_only_escape_probability(prior, beta=3, delta=.1, temperature=1.5),
+                               .4**2 / (.6**2 + .4**2))
+        self.assertEqual(prior_only_escape_probability([0, 0], beta=1, delta=.1, temperature=1), .5)
+        self.assertAlmostEqual(prior_only_escape_probability(prior, beta=1, delta=0, temperature=1), .375)
+        for priors, beta, delta, temperature in (([.2], 1, .1, 1), ([True, .3], 1, .1, 1),
+                                                 ([0, .3], 1, 0, 1), (prior, 1, .1, 0),
+                                                 (prior, float("nan"), .1, 1), ([0, 1], 1e308, 1e-12, 1)):
+            with self.subTest(priors=priors, beta=beta, delta=delta, temperature=temperature), self.assertRaises(ValueError):
+                prior_only_escape_probability(priors, beta=beta, delta=delta, temperature=temperature)
+
+    def test_full_can_beat_barrier_and_lose_to_prior_on_identical_resolved_events(self):
+        p = plan()
+        p["model"].update(beta=1, gamma=1, energy_reference=1)
+        c = p["conditions"][0]
+        c["run_ids"] = list("abcdefg")
+        for route, barrier, mismatch, prior, topology in (("collapse", 2.86e-7, .20, .50, .30),
+                                                         ("escape", 7.32e-7, .30, .30, .40)):
+            c["routes"][route].update(barrier=barrier, observable_mismatch=mismatch,
+                                      prior_probability=prior, topology_penalty=topology)
+        raw = freeze(encode(p))
+        digest = hashlib.sha256(raw).hexdigest()
+        before_outcomes = design(raw, digest)["conditions"]["synthetic-A"]
+        self.assertAlmostEqual(before_outcomes["escape_probability"]["prior_only"], .375)
+        self.assertAlmostEqual(before_outcomes["brier_threshold_vs_prior_only"]["escape_fraction_at_tie"], .35221, places=5)
+        self.assertEqual(before_outcomes["brier_threshold_vs_prior_only"]["full_has_lower_loss_when"], "below_threshold")
+        labels = ["collapse"] * 3 + ["escape"] * 2 + ["censored", "indeterminate"]
+        y = outcomes()
+        y["records"] = [dict(y["records"][0], run_id=run, outcome=label) for run, label in zip(c["run_ids"], labels)]
+        out = evaluate(raw, digest, encode(y))
+        self.assertEqual(out["resolved"], 5)
+        for key in ("mean_full_minus_prior_only", "mean_full_minus_barrier_only"):
+            paired = [row[key.removeprefix("mean_")] for row in out["paired_runs"]]
+            self.assertAlmostEqual(sum(paired) / len(paired), out[key])
+            self.assertEqual(out["equal_condition"][key], out[key])
+            self.assertEqual(out["by_condition"]["synthetic-A"][key], out[key])
+        self.assertLess(out["mean_full_minus_barrier_only"], 0)
+        self.assertGreater(out["mean_full_minus_prior_only"], 0)
+        self.assertAlmostEqual(out["mean_brier"]["prior_only"], .240625)
 
     def test_known_binary_brier_and_coverage(self):
         out = scored(plan(), outcomes())
@@ -214,7 +289,8 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(out["enrolled"], 4)
         self.assertEqual(out["resolved"], 0)
         self.assertIsNone(out["mean_full_minus_barrier_only"])
-        self.assertEqual(out["mean_brier"], {"barrier_only": None, "full": None})
+        self.assertIsNone(out["mean_full_minus_prior_only"])
+        self.assertEqual(out["mean_brier"], {"barrier_only": None, "full": None, "prior_only": None})
 
     def test_selection_leakage_and_invalid_inputs(self):
         for fault in ("selected", "answer in route", "duplicate enrollment", "empty roster",
